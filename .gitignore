@@ -1,0 +1,5 @@
+# OMC / agent workspace
+.omc/
+
+# macOS
+.DS_Store
