@@ -1,6 +1,7 @@
 # 竞品分析（简版）
 
-> 调研于 2026-08-31。目的：看清楚别人做到哪了、栽在哪，以及 dayscribe 的位置。
+> 调研于 2026-08-31，2026-09-01 补充 `nocoo/lyre` 与 ASR 选型修订。
+> 目的：看清楚别人做到哪了、栽在哪，以及 dayscribe 的位置。
 > 可信度说明见文末。
 
 ---
@@ -81,15 +82,49 @@ Rosebud 只能问"你今天的高光时刻是什么"，因为它对你的一天�
 | 用途 | 推荐 | License | 状态 |
 |---|---|---|---|
 | **VAD 去静音** | `snakers4/silero-vad` v6.2.1 | MIT | 10k★，8/24 更新 |
-| **ASR** | `ggerganov/whisper.cpp` | MIT | 53k★，最活跃 |
+| **ASR** | ⚠️ 见下方修订 —— 已改为云端优先 | | |
+| ASR（本地兜底） | `ggerganov/whisper.cpp` | MIT | 53k★，最活跃 |
 | ASR（带对齐） | `m-bain/whisperX` | BSD-2 | 23.8k★ |
 | ⚠️ faster-whisper | `SYSTRAN/faster-whisper` | MIT | **停滞 9 个月** |
 | **说话人分离** | `pyannote-audio` 4.0.7 | MIT | 10.5k★ |
 | 端到端参考 | `Zackriya-Solutions/meeting-minutes` | MIT | 30k★，全本地 Rust |
 | 架构最对口 | `collectiveai-team/coro` | — | 6★，可插拔 ASR+diarization |
+| **ASR 调用可抄** | `nocoo/lyre` | MIT | 见下方专条 |
 | AI 日记参考 | `memex-lab/memex` | GPL-3.0 | 706★，Flutter，BYOLLM |
 
 > ⚠️ **我原计划里写的 `faster-whisper` 要改。** 它最后一次功能提交停在 2025-11，已停滞 9 个月。改用 `whisper.cpp` 或 `whisperX`。
+
+> ⚠️ **2026-09-01 修订：ASR 已改为云端优先。** 上表推荐本地 whisper.cpp 是基于「本地优先」
+> 这个前提，而该前提已被放弃（归纳/提问/成文本来就在调 Claude API）。
+> 现在首选阿里云百炼 `qwen3-asr-flash-filetrans`，本地 whisper.cpp 降级为成本兜底。
+> **待验**：每小时单价、是否自带说话人分离。详见 [IDEAS.md](IDEAS.md) 第 3 节。
+
+#### `nocoo/lyre` —— 唯一可直接复用的上游（不是竞品）
+
+[`nocoo/lyre`](https://github.com/nocoo/lyre)（MIT）是一个自托管的会议录音管理平台：
+macOS 菜单栏 App 手动录制系统音 + 麦克风双轨，上传到自己的阿里云 OSS，
+DashScope 离线转写，Web 端管理 + 词级 karaoke 回放 + AI 摘要。
+架构是 Cloudflare Workers + D1 + 阿里云 OSS/DashScope，**全部自备账号**，没有官方托管服务。
+
+| | 内容 | 位置 |
+|---|---|---|
+| ✅ **可抄** | ASR submit/poll/fetchResult + 异步轮询状态机 | `packages/api/src/services/asr.ts` |
+| ✅ **可抄** | 词级数据分层：句子级入库、词级归档到对象存储、按需拉 | `job-processor.ts` / `recordings.ts` |
+| ❌ 不可抄 | 常开录音 —— **它是手动点的**，无 autoStart/autoUpload | `Views/UploadView.swift:127` |
+| ❌ 不可抄 | 长音频切片 —— **它没有 VAD**，整个文件直接丢给云端 | 全仓库无 VAD 相关代码 |
+| ❌ 不成立 | 靠"系统音一轨/麦克风一轨"做说话人分离 | 我们所有人共用一个麦克风 |
+
+**它踩过的坑**（对阶段二的录音层有直接价值）：
+
+- `AVAssetWriter` 一次性写入，m4a 索引在 `finishWriting()` 才落盘 → **中途崩溃则整个文件不可读**
+- 无睡眠/唤醒处理（无 `willSleep`/`didWake` 观察者）、无磁盘空间检查
+- 44.1kHz 蓝牙麦克风被按 48kHz 重打 PTS → 录音**快 8.8%、音高升 1.47 个半音**（他把数字算出来跟症状对上了才动手）
+- AAC `AVAssetWriterInput` 会无条件 trim 掉晚到 track 的前缀，补静默也救不回来 → 作为 known limitation 钉在测试里
+
+> **最值得注意的一点**：他在音频管道上写了 1000 行设计文档、跑 155 个 Swift 测试，
+> 到了 AI 环节，摘要 prompt 只有一行（"Summarize the following transcript concisely." + 一句语言要求）。
+> 这反向印证了本项目的判断——**录音转录是通用能力，差异化在那个会追问你的记事员。
+> 工程精力的分配应该是镜像的。**
 
 ### 4. 纸质日记 —— 二十年的留存实验
 
@@ -142,7 +177,9 @@ Bee 编造的那段"路易斯安那的病人"就是全部。宁可说"我注意�
 
 | 项 | 原计划 | 改成 |
 |---|---|---|
-| ASR | `faster-whisper` | `whisper.cpp` 或 `whisperX`（前者停滞 9 个月） |
+| ASR（8/31） | `faster-whisper` | `whisper.cpp` 或 `whisperX`（前者停滞 9 个月） |
+| **ASR（9/1 再修）** | 本地 whisper.cpp | **云端 `qwen3-asr-flash-filetrans` 优先**，whisper.cpp 降为成本兜底 |
+| **本地优先这个前提** | 默认本地跑 | **放弃**——归纳/提问/成文本来就在调 Claude API |
 | 灵感来源 | Rewind.ai / Limitless | 已被 Meta 收购停售，改为"失败案例" |
 | 验收标准 | 连用 7 天能想起细节 | 补一条：**提问必须基于当天转录的具体证据** |
 
@@ -151,6 +188,8 @@ Bee 编造的那段"路易斯安那的病人"就是全部。宁可说"我注意�
 ## 可信度说明
 
 - **高**：Limitless→Meta（2025-12-05）、Bee→Amazon（2025-07-22）、Humane→HP、Day One Daily Chat（2026-03-30）、各开源项目的 star/license/最后提交时间（`gh api` 实测）、App Store 评分与评论原文、Ego4D/EgoSchema 等论文数字。
+- **高（2026-09-01 新增）**：`nocoo/lyre` 的全部技术断言 —— 仓库已 clone 到本地逐行读过，包括 MIT license、手动录音无 autoStart、无 VAD、摘要 prompt 只有一行、AVAssetWriter 一次性写入、无睡眠唤醒处理、无磁盘检查。均可复现核实。
 - **中**：各家订阅价格（部分只有 App 内可见）、用户评论的代表性、纸质日记社区的引述（博客与 HN 可直接读到，Reddit 全程被封只能拿到搜索摘要）。
 - **低 / 勿引用**：Limitless "6–7 小时续航"这个流传很广的数字来自竞品站点且是 AI 生成的，**别用**；HN 上"该公司零专有技术、CEO 不称职"是匿名二手说法。
+- **低（2026-09-01 新增）**：DashScope 的"12 小时 / 2GB"上限 —— **仅来自 lyre 的一行代码注释**（`asr.ts:463`），未经阿里云官方文档核实。**qwen3-asr 的价格与是否支持说话人分离，本次完全没查到**（阿里云文档为 JS 渲染、本环境 WebSearch 不可用），这两项是 IDEAS.md 里标记的阻塞验证项。
 - 调研期间 WebSearch 多次报错、Reddit 全站不可达，结论主要来自直接抓取厂商页面、App Store API、HN API 和个人博客。对"是否遗漏了 2025–26 的新玩家"这一点，覆盖不能算穷尽。
