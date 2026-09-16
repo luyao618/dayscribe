@@ -74,13 +74,15 @@ swift test passes three cases: generated PCM fixture encoded to AAC and fully de
 - AudioRecorder now feeds selected ScreenCaptureKit system/microphone outputs through continuous native-format conversion and a common earliest-capture epoch into one M4A. Startup data is bounded (8MiB, 256 buffers, two-second timestamp span) and ordered by capture time once each selected source arrives. Writer rejection propagates before mixed PCM is reclaimed; shutdown drains converter/mixer tails before closing AAC.
 - Fresh app-owned preflight confirmed both screen/audio and microphone permissions. Actual SCK source timestamps share the host clock; the first mixed test preserved the microphone's 233.99ms later start. Measured cumulative source clock skew was zero frames in these short captures; this does not establish long-duration synchronization.
 
-| Actual source selection | Native rates | Saved duration | Local evidence |
+| Actual source selection | Native rates | PCM timeline / ffprobe container duration | Local evidence |
 |---|---|---|---|
-| System + built-in microphone | 48k + 48k | 8.233979s | artifacts/system-audio-check-7287lqrh |
-| Built-in microphone only, acoustic fixture | 48k | 8.032s | artifacts/system-audio-check-qg9wtf6q |
-| Jabra BIZ 2400 II USB microphone only, acoustic fixture | 16k → 48k | 8.000s | artifacts/system-audio-check-sd3ldai7 |
-| System + Jabra USB microphone, interrupted after ~5s of a 30s request | 48k + 16k | 5.214375s | artifacts/system-audio-check-6qipotlj |
-| System only regression | 48k | 8.020s | artifacts/system-audio-check-ptgy7o4n |
+| System + built-in microphone | 48k + 48k | 8.233979s / 8.298667s | artifacts/system-audio-check-7287lqrh |
+| Built-in microphone only, acoustic fixture | 48k | 8.032s / 8.085333s | artifacts/system-audio-check-qg9wtf6q |
+| Jabra BIZ 2400 II USB microphone only, acoustic fixture | 16k → 48k | 8.000s / 8.064000s | artifacts/system-audio-check-sd3ldai7 |
+| System + Jabra USB microphone, interrupted after ~5s of a 30s request | 48k + 16k | 5.214375s / 5.269333s | artifacts/system-audio-check-6qipotlj |
+| System only regression | 48k | 8.020s / 8.064000s | artifacts/system-audio-check-ptgy7o4n |
+
+AAC container durations currently exceed the submitted PCM timelines by about 44–65ms. Both measurements are retained separately; precise presentation timing and codec padding must be checked when integrating synchronized video and independent audio output.
 
 - Every listed capture produced exactly one fully decoded stereo AAC/M4A, with identifiable 880/1760Hz stimulus segments in the expected order, zero reported clipping, and successful process exit. Source-frame and native-rate reports verify the actual selected inputs. Acoustic checks disabled system capture and played the fixture through built-in speakers using AVAudioPlayer.currentDevice; this is sound recorded by physical microphones, not a fixture injected into the encoder. Default input remained the built-in microphone and default output remained Jabra after validation.
 - The first Jabra acoustic attempt (artifacts/system-audio-check-vfo9nhsp) captured/converted/decoded correctly but failed tone identification because the signal was too weak. It is retained as failed calibration evidence. A repeat with fixture peak 3000/32767 instead of 1000 passed the same thresholds; the checks were not relaxed. Bluetooth and live device changes are still untested.
