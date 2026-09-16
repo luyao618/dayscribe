@@ -11,3 +11,8 @@ __pycache__/
 
 # 探针产物：音频切片、转录、原始响应。可能含真实对话内容，不进版本库
 probe/out/
+
+# Native build products and local recording verification artifacts
+.build/
+build/
+artifacts/
