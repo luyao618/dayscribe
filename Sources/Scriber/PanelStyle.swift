@@ -34,10 +34,11 @@ struct PanelSourceRow: View {
     let name: String
     let symbol: String
     let tint: Color
-    let enabled: Bool
+    @Binding var enabled: Bool
     let status: String
     let powerDB: Float?
     let toggleHelp: String
+    var canToggle = true
 
     var body: some View {
         VStack(spacing: 8) {
@@ -48,9 +49,9 @@ struct PanelSourceRow: View {
                     .foregroundStyle(enabled ? PanelPalette.ink : PanelPalette.slate)
                 Spacer(minLength: 2)
                 Text(status).font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
-                Toggle(name, isOn: .constant(enabled))
+                Toggle(name, isOn: $enabled)
                     .toggleStyle(SourceToggleStyle(tint: tint, name: name))
-                    .disabled(true)
+                    .disabled(!canToggle)
                     .help(toggleHelp)
             }
             HStack(spacing: 12) {

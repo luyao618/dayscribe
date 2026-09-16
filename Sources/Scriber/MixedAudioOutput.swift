@@ -3,8 +3,11 @@ import ScreenCaptureKit
 
 struct AudioCaptureMetrics: Sendable {
     var nativeFrames: [AudioSource: Int64] = [:]
+    var receivedFrames: [AudioSource: Int64] = [:]
+    var discardedPowerDBFS: [AudioSource: Float] = [:]
     var nativeRates: [AudioSource: Double] = [:]
     var firstTimes: [AudioSource: Double] = [:]
+    var lastTimes: [AudioSource: Double] = [:]
     var hostDelaySeconds: [AudioSource: Double] = [:]
     var powerDBFS: [AudioSource: Float] = [:]
     var maximumPowerDBFS: [AudioSource: Float] = [:]
@@ -18,7 +21,7 @@ struct AudioCaptureMetrics: Sendable {
 /// in capture-time order once each selected source has delivered its first data.
 final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     let writer: AudioSampleWriter
-    private let sources: Set<AudioSource>
+    private var sources: Set<AudioSource>
     private let mixer: AudioTimelineMixer
     private var epoch: CMTime?
     private var startup: [(source: AudioSource, sample: CMSampleBuffer)] = []
@@ -41,8 +44,17 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
 
     func append(_ sample: CMSampleBuffer, source: AudioSource) {
         dispatchPrecondition(condition: .onQueue(writer.queue))
-        guard !closed, metrics.errorMessage == nil, sources.contains(source) else { return }
+        guard !closed, metrics.errorMessage == nil else { return }
         guard sample.isValid, sample.dataReadiness == .ready, sample.numSamples > 0 else { return }
+        metrics.receivedFrames[source, default: 0] += Int64(sample.numSamples)
+        guard sources.contains(source) else {
+            if let description = sample.formatDescription,
+               CMFormatDescriptionGetMediaType(description) == kCMMediaType_Audio,
+               let level = try? AudioSampleWriter.levels(sample, format: AVAudioFormat(cmAudioFormatDescription: description)) {
+                metrics.discardedPowerDBFS[source] = level.power
+            }
+            return
+        }
         do {
             let time = sample.presentationTimeStamp
             guard time.isNumeric, time.seconds.isFinite, let description = sample.formatDescription,
@@ -55,6 +67,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
             metrics.nativeFrames[source, default: 0] += Int64(sample.numSamples)
             metrics.nativeRates[source] = format.sampleRate
             if metrics.firstTimes[source] == nil { metrics.firstTimes[source] = time.seconds }
+            metrics.lastTimes[source] = time.seconds
             metrics.hostDelaySeconds[source] = (CMClockGetTime(CMClockGetHostTimeClock()) - time).seconds
             if epoch == nil {
                 startupBytes += CMSampleBufferGetTotalSampleSize(sample)
@@ -72,6 +85,46 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                 try process(sample, source: source)
             }
         } catch { metrics.errorMessage = error.localizedDescription }
+    }
+
+    /// Gate the mix at the user's action time while in-flight capture callbacks
+    /// can still deliver samples from before that time. Hardware follows next.
+    func prepareSources(_ selected: Set<AudioSource>, at time: CMTime) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            writer.queue.async {
+                do {
+                    guard !self.closed, self.metrics.errorMessage == nil else { throw AudioMixError.finished }
+                    try self.mixer.setSources(selected, at: self.frame(time))
+                    self.sources.formUnion(selected)
+                    continuation.resume()
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    /// Called after SCStream applies its source flags, behind queued callbacks.
+    /// Flush disabled converters now so re-enabling starts a fresh timed segment.
+    func completeSources(_ selected: Set<AudioSource>) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            writer.queue.async {
+                do {
+                    guard !self.closed, self.metrics.errorMessage == nil else { throw AudioMixError.finished }
+                    for source in self.sources.subtracting(selected) {
+                        if let segment = self.segments[source] {
+                            try self.push(try segment.converter.finish(), segment: segment, source: source)
+                        }
+                        self.segments[source] = nil
+                        self.metrics.powerDBFS[source] = -160
+                        self.metrics.lastTimes[source] = nil
+                    }
+                    self.sources = selected
+                    continuation.resume()
+                } catch {
+                    self.metrics.errorMessage = error.localizedDescription
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     func snapshot() async -> AudioCaptureMetrics {

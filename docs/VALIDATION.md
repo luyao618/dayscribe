@@ -90,6 +90,16 @@ AAC container durations currently exceed the submitted PCM timelines by about 44
 
 ![Native audio diagnostic, offscreen idle render](screenshots/native-audio-check.png)
 
+## Live panel integration — implementation pending final native checks
+
+- The approved panel now uses AudioRecorder for both source toggles, measured independent levels, microphone-device help, elapsed time, filename, last saved file and asynchronous stop. Default-both source selection is persisted; disabling every source is rejected with a visible message. The old separate AVAudioRecorder path is removed, including its synchronous-quit assumption.
+- Initial live tests (artifacts/source-switch-check-u5efy63s and source-switch-check-p_thn9wb) passed recorded-signal gating and last-source rejection but **failed** the native callback-stop check. Updating captureMicrophone=false still delivered nonzero microphone PCM, including with a fresh SCStreamConfiguration and explicit device UID. These are not successful independent-stop results.
+- The implementation now owns separate system/microphone SCStreams sharing one host-clock mixer/encoder. Disabled source streams are explicitly stopped; converter tails are drained and retired before later restart. Final real validation of this replacement is **pending**: the subsequent attempt (artifacts/source-switch-check-zpgw307m) correctly failed before recording because the Mac was locked and all displays asleep. Public session/display inspection confirmed that state; no unlock or permission bypass was attempted.
+- Twenty-seven component cases pass (17 test functions), including persisted nonempty selection and a 16kHz source stop/restart with preserved epoch and flushed resampling tail. Debug build/signature, script syntax and the native idle render pass. These checks do not prove the replacement streams' live lifecycle or native UI clicks.
+- Remaining gates for this PR: scripts/check-source-switching.py with both/single initial sources and USB input; normal microphone regression; scripts/check-system-audio.py --panel --sources both --seconds 30 --interrupt-after 5 --quit-via-appkit. Keep the PR as draft until the actual source and termination checks pass. Native desktop click/keyboard acceptance also remains pending.
+
+![Connected native panel, offscreen idle render](screenshots/native-live-panel-idle.png)
+
 ## Remaining acceptance
 
 Live source switching and main-panel mixed capture integration, screen selection/video outputs, Bluetooth, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit async mixed-audio stop is verified; final OS-driven quit/sleep and video shutdown still need dedicated checks.

@@ -2,11 +2,10 @@ import AppKit
 import SwiftUI
 
 struct RecorderPanel: View {
-    @ObservedObject var microphone: MicrophoneRecorder
+    @ObservedObject var recorder: AudioRecorder
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
-    @State private var recentURL: URL?
-    @State private var recentDuration = ""
+    let onQuit: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,7 +16,7 @@ struct RecorderPanel: View {
                 if mode == .video { captureTarget }
                 sources
                 destination
-                if let error = microphone.errorMessage {
+                if let error = recorder.errorMessage ?? recorder.controlMessage {
                     Text(error)
                         .font(.system(size: 11))
                         .foregroundStyle(PanelPalette.record)
@@ -40,12 +39,6 @@ struct RecorderPanel: View {
         .background(PanelPalette.pearl)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.7)))
-        .onChange(of: microphone.phase) { _, phase in
-            if phase == .saved {
-                recentURL = microphone.outputURL
-                recentDuration = microphone.elapsedText
-            }
-        }
     }
 
     private var header: some View {
@@ -73,7 +66,7 @@ struct RecorderPanel: View {
                             Text("设置").font(.headline)
                             Text("保存位置与快捷键设置暂不可用")
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
-                            Button("退出 Scriber") { NSApp.terminate(nil) }
+                            Button("退出 Scriber") { onQuit() }
                         }
                         .padding(20)
                     }
@@ -99,7 +92,7 @@ struct RecorderPanel: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(mode == choice ? .isSelected : [])
-                .disabled(microphone.isRecording || microphone.isBusy)
+                .disabled(recorder.isRecording || recorder.isBusy)
             }
         }
         .padding(3)
@@ -166,21 +159,16 @@ struct RecorderPanel: View {
             HStack {
                 Text("声音来源").fontWeight(.semibold)
                 Spacer()
-                Text("1 路已开启").font(.system(size: 10))
+                Text("\(recorder.sources.count) 路已开启").font(.system(size: 10))
             }
             .font(.system(size: 11))
             .foregroundStyle(PanelPalette.slate)
             .padding(.bottom, 9)
             .frame(height: 27, alignment: .top)
             VStack(spacing: 0) {
-                PanelSourceRow(name: "电脑声音", symbol: "display", tint: PanelPalette.iris,
-                               enabled: false, status: "暂不可用", powerDB: nil,
-                               toggleHelp: "电脑声音暂不可用")
+                sourceRow(.system)
                 Rectangle().fill(PanelPalette.line).frame(height: 1)
-                PanelSourceRow(name: "麦克风", symbol: "mic", tint: PanelPalette.jade,
-                               enabled: true, status: microphoneStatus,
-                               powerDB: microphone.isRecording ? microphone.powerDB : nil,
-                               toggleHelp: "当前只有麦克风可用，需保留至少一路声音")
+                sourceRow(.microphone)
             }
             .background(.white.opacity(0.75), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white))
@@ -217,25 +205,26 @@ struct RecorderPanel: View {
 
     private var primaryAction: some View {
         Button {
-            if microphone.isRecording { microphone.stop() }
-            else { Task { await microphone.start() } }
+            if recorder.isRecording { Task { await recorder.stop() } }
+            else { Task { await recorder.start() } }
         } label: {
             HStack(spacing: 9) {
-                RoundedRectangle(cornerRadius: microphone.isRecording ? 2 : 5)
+                RoundedRectangle(cornerRadius: recorder.isRecording ? 2 : 5)
                     .frame(width: 10, height: 10)
-                Text(microphone.isRecording ? "停止并保存" : (mode == .audio ? "开始录音" : "选择范围并录屏"))
+                Text(recorder.state == .finishing ? "正在保存…" : (recorder.state == .authorizing ? "正在准备…"
+                     : (recorder.isRecording ? "停止并保存" : (mode == .audio ? "开始录音" : "选择范围并录屏"))))
             }
             .font(.system(size: 13, weight: .semibold))
             .frame(maxWidth: .infinity)
             .frame(height: 42)
-            .foregroundStyle(microphone.isRecording ? PanelPalette.stopInk : .white)
-            .background(microphone.isRecording ? PanelPalette.stopBackground : PanelPalette.iris,
+            .foregroundStyle(recorder.isRecording ? PanelPalette.stopInk : .white)
+            .background(recorder.isRecording ? PanelPalette.stopBackground : PanelPalette.iris,
                         in: RoundedRectangle(cornerRadius: 10))
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
-        .disabled(mode == .video || microphone.isBusy)
-        .help(mode == .video ? "录屏暂不可用" : "录制麦克风声音")
+        .disabled(mode == .video || recorder.isBusy)
+        .help(mode == .video ? "录屏暂不可用" : "录制已开启的声音来源")
     }
 
     private var recentRecording: some View {
@@ -252,7 +241,7 @@ struct RecorderPanel: View {
             .font(.system(size: 11))
             .foregroundStyle(PanelPalette.slate)
             .padding(.bottom, 9)
-            if let url = recentURL {
+            if let url = recorder.lastSavedURL {
                 Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: {
                     HStack(spacing: 10) {
                         recordingIcon
@@ -264,7 +253,7 @@ struct RecorderPanel: View {
                                 .font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
                         }
                         Spacer(minLength: 2)
-                        Text(recentDuration).font(.system(size: 10, design: .monospaced))
+                        Text(recorder.lastSavedDuration).font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(PanelPalette.slate)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9)).foregroundStyle(PanelPalette.muted)
@@ -294,42 +283,46 @@ struct RecorderPanel: View {
             .background(PanelPalette.jade.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var clockText: String { mode == .audio ? microphone.elapsedText : "00:00:00" }
+    private var clockText: String { mode == .audio ? recorder.elapsedText : "00:00:00" }
     private var filename: String {
-        if mode == .audio, let url = microphone.outputURL { return url.deletingPathExtension().lastPathComponent }
+        if mode == .audio, let url = recorder.outputURL { return url.deletingPathExtension().lastPathComponent }
         return "开始录制后自动命名"
     }
     private var destinationURL: URL {
-        if mode == .audio, let url = microphone.outputURL { return url.deletingLastPathComponent() }
+        if mode == .audio, let url = recorder.outputURL { return url.deletingLastPathComponent() }
         return FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Movies/Scriber/\(mode == .audio ? "录音" : "录屏")", directoryHint: .isDirectory)
     }
     private var destinationPath: String {
         (destinationURL.path as NSString).abbreviatingWithTildeInPath
     }
-    private var microphoneStatus: String {
-        if mode == .video { return "未录制" }
-        return switch microphone.phase {
-        case .recording: microphone.powerDB > -65 ? "已检测到声音" : "等待声音"
-        case .failed: "录音异常"
-        case .authorizing: "等待授权"
-        case .finishing: "正在保存"
-        default: "未录制"
-        }
+    private func sourceRow(_ source: AudioSource) -> some View {
+        let name = source == .system ? "电脑声音" : "麦克风"
+        return PanelSourceRow(name: name, symbol: source == .system ? "display" : "mic",
+                              tint: source == .system ? PanelPalette.iris : PanelPalette.jade,
+                              enabled: Binding(get: { recorder.sources.contains(source) }, set: { enabled in
+                                  var selected = recorder.sources
+                                  if enabled { selected.insert(source) } else { selected.remove(source) }
+                                  Task { await recorder.setSources(selected) }
+                              }), status: recorder.sourceStatus(source),
+                              powerDB: recorder.sourcePower(source),
+                              toggleHelp: source == .microphone ? "切换麦克风 · \(recorder.microphoneName)" : "切换电脑声音",
+                              canToggle: recorder.canChangeSources)
     }
     private var statusColor: Color {
-        if microphone.isRecording { return PanelPalette.record }
-        if mode == .audio, microphone.phase == .saved { return PanelPalette.jade }
+        if recorder.state == .failed { return PanelPalette.record }
+        if recorder.isRecording { return PanelPalette.record }
+        if mode == .audio, recorder.state == .completed { return PanelPalette.jade }
         return PanelPalette.slate
     }
     private var statusText: String {
         if mode == .video { return "录屏暂不可用" }
-        return switch microphone.phase {
+        return switch recorder.state {
         case .idle: "准备录音"
-        case .authorizing: "等待麦克风授权"
+        case .authorizing: "等待录制权限"
         case .recording: "正在录音"
         case .finishing: "正在保存"
-        case .saved: "已保存"
+        case .completed: "已保存"
         case .failed: "录制未完成"
         }
     }

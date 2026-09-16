@@ -11,7 +11,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         var title: String {
             switch self {
             case .idle: "未录制"
-            case .authorizing: "等待屏幕与系统音频权限"
+            case .authorizing: "等待录制权限"
             case .recording: "正在录音"
             case .finishing: "正在保存"
             case .completed: "已保存"
@@ -23,24 +23,155 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var summary: AudioWriteSummary?
     @Published private(set) var errorMessage: String?
     @Published private(set) var captureMetrics = AudioCaptureMetrics()
-    @Published private(set) var sources: Set<AudioSource> = [.system]
+    @Published private(set) var sources: Set<AudioSource> = [.system, .microphone]
+    @Published private(set) var isChangingSources = false
+    @Published private(set) var controlMessage: String?
+    @Published private(set) var lastSavedURL: URL?
+    @Published private(set) var lastSavedDuration = ""
+    @Published private(set) var microphoneName = "默认麦克风"
     private(set) var outputURL: URL?
     private(set) var interrupted = false
     var onUpdate: (() -> Void)?
 
-    private var stream: SCStream?
+    private var streams: [AudioSource: SCStream] = [:]
     private var output: MixedAudioOutput?
     private var writer: AudioSampleWriter?
     private var progress: Task<Void, Never>?
     private var generation = UUID()
+    private var captureFilter: SCContentFilter?
+    private var microphoneDeviceID: String?
+    private let defaults: UserDefaults?
 
-    func start(directory: URL, sources: Set<AudioSource> = [.system], microphoneDeviceID: String? = nil) async {
+    init(defaults: UserDefaults? = nil) {
+        self.defaults = defaults
+        super.init()
+        let mask = (defaults?.object(forKey: "recordingSources") as? Int ?? 3) & 3
+        sources = Set(AudioSource.allCases.filter { (mask == 0 ? 3 : mask) & (1 << $0.rawValue) != 0 })
+        microphoneName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
+    }
+
+    var isRecording: Bool { state == .recording }
+    var isBusy: Bool { state == .authorizing || state == .finishing }
+    var elapsedText: String {
+        let seconds = Int(summary?.duration ?? 0)
+        return String(format: "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+    }
+    var canChangeSources: Bool { !isBusy && !isChangingSources && (!isRecording || (summary?.frames ?? 0) > 0) }
+
+    func sourcePower(_ source: AudioSource) -> Float? {
+        guard isRecording, sources.contains(source),
+              let last = captureMetrics.lastTimes[source],
+              CMClockGetTime(CMClockGetHostTimeClock()).seconds - last < 1 else { return nil }
+        return captureMetrics.powerDBFS[source]
+    }
+
+    func sourceStatus(_ source: AudioSource) -> String {
+        guard sources.contains(source) else { return "已关闭" }
+        if isChangingSources { return "正在切换" }
+        if state == .failed { return "录音异常" }
+        if isBusy { return state == .authorizing ? "等待授权" : "正在保存" }
+        guard isRecording else { return "未录制" }
+        guard let power = sourcePower(source) else { return "等待声音数据" }
+        return power > -65 ? "已检测到声音" : "等待声音"
+    }
+
+    @discardableResult
+    func setSources(_ selected: Set<AudioSource>) async -> Bool {
+        controlMessage = nil
+        guard !selected.isEmpty else { controlMessage = "至少保留一路声音。"; return false }
+        guard canChangeSources else { controlMessage = "声音正在准备，请稍候。"; return false }
+        guard selected != sources else { return true }
+        if !state.active {
+            sources = selected
+            saveSourcePreference()
+            return true
+        }
+        guard let output, let captureFilter else { return false }
+        let token = generation
+        isChangingSources = true
+        defer { isChangingSources = false; onUpdate?() }
+        if selected.contains(.microphone), !sources.contains(.microphone) {
+            let authorized = AVCaptureDevice.authorizationStatus(for: .audio)
+            let allowed = authorized == .notDetermined
+                ? await AVCaptureDevice.requestAccess(for: .audio) : authorized == .authorized
+            guard generation == token, isRecording else { return false }
+            guard allowed else { controlMessage = "麦克风权限未开启，当前录音继续。"; return false }
+        }
+        do {
+            try await output.prepareSources(selected, at: CMClockGetTime(CMClockGetHostTimeClock()))
+            guard generation == token, isRecording else { return false }
+            for source in selected.subtracting(sources) {
+                try await startSource(source, output: output, filter: captureFilter)
+                guard generation == token, isRecording else { return false }
+            }
+            for source in sources.subtracting(selected) {
+                if let capture = streams.removeValue(forKey: source) { try await capture.stopCapture() }
+                guard generation == token, isRecording else { return false }
+            }
+            try await output.completeSources(selected)
+            guard generation == token, isRecording else { return false }
+            sources = selected
+            captureMetrics = await output.snapshot()
+            updateMicrophoneName(microphoneDeviceID)
+            saveSourcePreference()
+            return true
+        } catch {
+            guard generation == token, isRecording else { return false }
+            await stop(error: "无法切换声音来源：\(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private static func configuration(sources: Set<AudioSource>, microphoneDeviceID: String?) -> SCStreamConfiguration {
+        let configuration = SCStreamConfiguration()
+        configuration.capturesAudio = sources.contains(.system)
+        configuration.captureMicrophone = sources.contains(.microphone)
+        configuration.microphoneCaptureDeviceID = sources.contains(.microphone)
+            ? (microphoneDeviceID ?? AVCaptureDevice.default(for: .audio)?.uniqueID) : nil
+        configuration.sampleRate = 48_000
+        configuration.channelCount = 2
+        configuration.excludesCurrentProcessAudio = false
+        // No screen samples are retained or encoded for audio-only capture.
+        configuration.width = 2
+        configuration.height = 2
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 1)
+        configuration.queueDepth = 3
+        return configuration
+    }
+
+    // Separate streams make microphone off an actual stop. On this macOS,
+    // updating captureMicrophone=false alone still delivered live microphone PCM.
+    private func startSource(_ source: AudioSource, output: MixedAudioOutput, filter: SCContentFilter) async throws {
+        let capture = SCStream(filter: filter,
+                               configuration: Self.configuration(sources: [source], microphoneDeviceID: microphoneDeviceID),
+                               delegate: self)
+        try capture.addStreamOutput(output, type: source == .system ? .audio : .microphone,
+                                    sampleHandlerQueue: output.writer.queue)
+        streams[source] = capture
+        try await capture.startCapture()
+        if streams[source] !== capture { try? await capture.stopCapture() }
+    }
+
+    private func saveSourcePreference() {
+        defaults?.set(sources.reduce(0) { $0 | (1 << $1.rawValue) }, forKey: "recordingSources")
+    }
+
+    private func updateMicrophoneName(_ id: String?) {
+        microphoneName = id.map { AVCaptureDevice(uniqueID: $0)?.localizedName ?? "所选麦克风" }
+            ?? AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
+    }
+
+    func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil) async {
         guard !state.active else { return }
+        let sources = selection ?? self.sources
         let token = UUID()
         generation = token
         interrupted = false
+        controlMessage = nil
         captureMetrics = AudioCaptureMetrics()
         self.sources = sources
+        self.microphoneDeviceID = microphoneDeviceID ?? AVCaptureDevice.default(for: .audio)?.uniqueID
+        updateMicrophoneName(self.microphoneDeviceID)
         summary = nil
         errorMessage = nil
         outputURL = nil
@@ -69,38 +200,23 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                     ?? content.displays.first else {
                 throw AudioWriteError.encoding("没有可用的显示器。")
             }
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let url = directory.appendingPathComponent("录音 \(UUID().uuidString).m4a")
+            let folder = directory ?? FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "Movies/Scriber/录音", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let date = DateFormatter()
+            date.locale = Locale(identifier: "en_US_POSIX")
+            date.dateFormat = "yyyy-MM-dd HH.mm.ss"
+            let url = folder.appendingPathComponent("录音 \(date.string(from: Date())) \(UUID().uuidString.prefix(4)).m4a")
             let sink = try AudioSampleWriter(url: url)
             writer = sink
             outputURL = url
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-            let configuration = SCStreamConfiguration()
-            configuration.capturesAudio = sources.contains(.system)
-            configuration.captureMicrophone = sources.contains(.microphone)
-            configuration.microphoneCaptureDeviceID = microphoneDeviceID
-            configuration.sampleRate = 48_000
-            configuration.channelCount = 2
-            configuration.excludesCurrentProcessAudio = false
-            // No screen samples are retained or encoded for audio-only capture.
-            configuration.width = 2
-            configuration.height = 2
-            configuration.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-            configuration.queueDepth = 3
             let handler = try MixedAudioOutput(writer: sink, sources: sources)
-            let capture = SCStream(filter: filter, configuration: configuration, delegate: self)
-            if sources.contains(.system) {
-                try capture.addStreamOutput(handler, type: .audio, sampleHandlerQueue: sink.queue)
-            }
-            if sources.contains(.microphone) {
-                try capture.addStreamOutput(handler, type: .microphone, sampleHandlerQueue: sink.queue)
-            }
             output = handler
-            stream = capture
-            try await capture.startCapture()
-            guard generation == token, state == .authorizing else {
-                try? await capture.stopCapture()
-                return
+            captureFilter = filter
+            for source in AudioSource.allCases where sources.contains(source) {
+                try await startSource(source, output: handler, filter: filter)
+                guard generation == token, state == .authorizing else { return }
             }
             state = .recording
             onUpdate?()
@@ -126,6 +242,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
 
     func stop(interrupted: Bool = false, error: String? = nil) async {
         guard state.active, state != .finishing else { return }
+        controlMessage = nil
         generation = UUID()
         self.interrupted = interrupted
         errorMessage = error
@@ -133,11 +250,13 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         progress?.cancel()
         progress = nil
         onUpdate?()
-        if let stream {
-            do { try await stream.stopCapture() }
+        let activeStreams = Array(streams.values)
+        streams.removeAll()
+        captureFilter = nil
+        for capture in activeStreams {
+            do { try await capture.stopCapture() }
             catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
         }
-        stream = nil
         if let output {
             do { try await output.finish() }
             catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
@@ -155,6 +274,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         }
         writer = nil
         state = errorMessage == nil ? .completed : .failed
+        if state == .completed { lastSavedURL = outputURL; lastSavedDuration = elapsedText }
         onUpdate?()
     }
 
@@ -162,7 +282,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         let identity = ObjectIdentifier(stream)
         let message = Self.captureMessage(error)
         Task { @MainActor [weak self] in
-            guard let self, let active = self.stream, ObjectIdentifier(active) == identity else { return }
+            guard let self, self.streams.values.contains(where: { ObjectIdentifier($0) == identity }) else { return }
             await self.stop(error: message)
         }
     }

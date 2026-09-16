@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-主面板暂使用 AVAudioRecorder 麦克风路径；新的 AudioRecorder 已通过 ScreenCaptureKit 真实双路采集、采样率转换、混音及中断保存验证，主面板双路控制与录屏仍待接入。MixedAudioOutput 把原始采集时间映射到 AudioTimelineMixer，经 AudioPCMConverter 转换后由 AudioSampleWriter 串行编码。已验证内置麦克风和 Jabra USB 的 48k / 16k 输入，蓝牙与设备切换仍待验收。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
+主面板已使用 AudioRecorder，连接双路选择、独立电平、最近保存文件和异步退出；旧 MicrophoneRecorder 已移除。运行中仅更新 captureMicrophone=false 实测仍收到真实麦克风数据，因此改为独立启停两个 SCStream，共用 MixedAudioOutput、AudioPCMConverter、AudioTimelineMixer 和一个 AudioSampleWriter。27 个组件用例及原生构建通过，最终独立启停和 AppKit 退出测试因 Mac 锁屏待继续；不得把之前单流验证冒充新方案已通过。design/ 仍是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
 
 ## 约定
 

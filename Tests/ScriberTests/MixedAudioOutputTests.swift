@@ -64,6 +64,56 @@ struct MixedAudioOutputTests {
         }
     }
 
+    @Test func sourceRestartPreservesEpochAndFlushesResamplingTail() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioSampleWriter(url: url)
+        let output = try MixedAudioOutput(writer: writer, sources: [.system, .microphone])
+        let base: Int64 = 500 * 48_000
+        for start in stride(from: 0, to: 48_000, by: 480) {
+            if start == 14_400 || start == 28_800 {
+                let selected: Set<AudioSource> = start == 14_400 ? [.system] : [.system, .microphone]
+                try await output.prepareSources(selected, at: CMTime(value: base + Int64(start), timescale: 48_000))
+                try await output.completeSources(selected)
+                if start == 14_400 { #expect(await output.snapshot().lastTimes[.microphone] == nil) }
+            }
+            let system = try MixedAudioOutput.sample(stereo: Array(repeating: 0.1, count: 960), at: base + Int64(start))
+            writer.queue.sync { output.append(system, source: .system) }
+            if start < 14_400 || start >= 28_800 {
+                let microphone = try nativeMicrophone(at: base + Int64(start))
+                writer.queue.sync { output.append(microphone, source: .microphone) }
+            }
+        }
+        try await output.finish()
+        let summary = try await writer.finish()
+        let metrics = await output.snapshot()
+        #expect(metrics.errorMessage == nil)
+        #expect(metrics.nativeFrames[.microphone] == 11_200)
+        #expect(metrics.nativeRates[.microphone] == 16_000)
+        #expect(summary.frames == 48_000)
+        #expect(abs(summary.duration - 1) < 0.000001)
+        #expect(metrics.maximumClockSkewFrames[.microphone] == 0)
+    }
+
+    private func nativeMicrophone(at frame: Int64) throws -> CMSampleBuffer {
+        let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1))
+        let pcm = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 160))
+        pcm.frameLength = 160
+        for i in 0..<160 { pcm.floatChannelData?[0][i] = Float(sin(Double(i) * 2 * .pi * 1_760 / 16_000) * 0.1) }
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 16_000),
+                                       presentationTimeStamp: CMTime(value: frame, timescale: 48_000), decodeTimeStamp: .invalid)
+        var result: CMSampleBuffer?
+        #expect(CMSampleBufferCreate(allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: true,
+                                    makeDataReadyCallback: nil, refcon: nil, formatDescription: format.formatDescription,
+                                    sampleCount: 160, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+                                    sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &result) == noErr)
+        let sample = try #require(result)
+        #expect(CMSampleBufferSetDataBufferFromAudioBufferList(sample, blockBufferAllocator: kCFAllocatorDefault,
+                                                              blockBufferMemoryAllocator: kCFAllocatorDefault,
+                                                              flags: 0, bufferList: pcm.audioBufferList) == noErr)
+        return sample
+    }
+
     @Test func missingSelectedSourceCannotProduceFalseSuccess() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
         defer { try? FileManager.default.removeItem(at: url) }

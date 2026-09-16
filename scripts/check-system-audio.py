@@ -21,6 +21,8 @@ parser.add_argument("--microphone-device")
 parser.add_argument("--playback-device", help="Route the fixture to this device UID without changing system defaults")
 parser.add_argument("--stimulus-amplitude", type=int, default=1000, help="Test PCM peak, 1–4096 out of 32767")
 parser.add_argument("--expected-microphone-rate", type=int)
+parser.add_argument("--panel", action="store_true", help="Exercise the normal recorder panel with real capture")
+parser.add_argument("--quit-via-appkit", action="store_true", help="Use NSApplication termination on the interruption signal")
 args = parser.parse_args()
 if not 1 <= args.stimulus_amplitude <= 4096:
     parser.error("--stimulus-amplitude must be between 1 and 4096")
@@ -53,7 +55,11 @@ with wave.open(str(stimulus), "wb") as wav:
     wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(48_000)
     wav.writeframes(pcm.tobytes())
 command = ["open", str(project / "build/Scriber.app"), "--args", "--show-panel",
-           "--mixed-audio-check", str(root), str(args.seconds), "--audio-sources", args.sources]
+           "--panel-audio-check" if args.panel else "--mixed-audio-check", str(root), str(args.seconds), "--audio-sources", args.sources]
+if args.panel:
+    command += ["--panel-snapshots"]
+if args.quit_via_appkit:
+    command += ["--quit-via-appkit"]
 if args.microphone_device:
     command += ["--microphone-device", args.microphone_device]
 subprocess.run(command, check=True)

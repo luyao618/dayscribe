@@ -16,8 +16,8 @@ enum RenderPanel {
         if CommandLine.arguments.count == 3, CommandLine.arguments[2] == "system" {
             panel = AnyView(SystemAudioCheckPanel(recorder: AudioRecorder(), onStop: {}))
         } else {
-            panel = AnyView(RecorderPanel(microphone: MicrophoneRecorder(),
-                                         mode: CommandLine.arguments.last == "video" ? .video : .audio))
+            panel = AnyView(RecorderPanel(recorder: AudioRecorder(),
+                                         mode: CommandLine.arguments.last == "video" ? .video : .audio, onQuit: {}))
         }
         let content = panel
             .background(Color(nsColor: .windowBackgroundColor))
