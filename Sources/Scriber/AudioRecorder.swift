@@ -4,7 +4,7 @@ import CoreGraphics
 import ScreenCaptureKit
 
 @MainActor
-final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
+final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     enum State: String {
         case idle, authorizing, recording, finishing, completed, failed
         var active: Bool { self == .authorizing || self == .recording || self == .finishing }
@@ -12,7 +12,7 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             switch self {
             case .idle: "未录制"
             case .authorizing: "等待屏幕与系统音频权限"
-            case .recording: "正在录制电脑声音"
+            case .recording: "正在录音"
             case .finishing: "正在保存"
             case .completed: "已保存"
             case .failed: "采集未完成"
@@ -22,27 +22,44 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var state = State.idle
     @Published private(set) var summary: AudioWriteSummary?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var captureMetrics = AudioCaptureMetrics()
+    @Published private(set) var sources: Set<AudioSource> = [.system]
     private(set) var outputURL: URL?
     private(set) var interrupted = false
     var onUpdate: (() -> Void)?
 
     private var stream: SCStream?
-    private var output: SystemAudioOutput?
+    private var output: MixedAudioOutput?
     private var writer: AudioSampleWriter?
     private var progress: Task<Void, Never>?
     private var generation = UUID()
 
-    func start(directory: URL) async {
+    func start(directory: URL, sources: Set<AudioSource> = [.system], microphoneDeviceID: String? = nil) async {
         guard !state.active else { return }
         let token = UUID()
         generation = token
         interrupted = false
+        captureMetrics = AudioCaptureMetrics()
+        self.sources = sources
         summary = nil
         errorMessage = nil
         outputURL = nil
         state = .authorizing
         onUpdate?()
         do {
+            guard !sources.isEmpty else { throw AudioMixError.invalidConfiguration }
+            if sources.contains(.microphone) {
+                let authorized: Bool
+                switch AVCaptureDevice.authorizationStatus(for: .audio) {
+                case .authorized: authorized = true
+                case .notDetermined: authorized = await AVCaptureDevice.requestAccess(for: .audio)
+                default: authorized = false
+                }
+                guard generation == token, state == .authorizing else { return }
+                guard authorized else {
+                    throw AudioWriteError.encoding("请在系统设置 → 隐私与安全性 → 麦克风中允许 Scriber。")
+                }
+            }
             if !CGPreflightScreenCaptureAccess(), !CGRequestScreenCaptureAccess() {
                 throw NSError(domain: SCStreamErrorDomain, code: SCStreamError.Code.userDeclined.rawValue)
             }
@@ -53,14 +70,15 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 throw AudioWriteError.encoding("没有可用的显示器。")
             }
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let url = directory.appendingPathComponent("电脑声音 \(UUID().uuidString).m4a")
+            let url = directory.appendingPathComponent("录音 \(UUID().uuidString).m4a")
             let sink = try AudioSampleWriter(url: url)
             writer = sink
             outputURL = url
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             let configuration = SCStreamConfiguration()
-            configuration.capturesAudio = true
-            configuration.captureMicrophone = false
+            configuration.capturesAudio = sources.contains(.system)
+            configuration.captureMicrophone = sources.contains(.microphone)
+            configuration.microphoneCaptureDeviceID = microphoneDeviceID
             configuration.sampleRate = 48_000
             configuration.channelCount = 2
             configuration.excludesCurrentProcessAudio = false
@@ -69,9 +87,14 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             configuration.height = 2
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: 1)
             configuration.queueDepth = 3
-            let handler = SystemAudioOutput(writer: sink)
+            let handler = try MixedAudioOutput(writer: sink, sources: sources)
             let capture = SCStream(filter: filter, configuration: configuration, delegate: self)
-            try capture.addStreamOutput(handler, type: .audio, sampleHandlerQueue: sink.queue)
+            if sources.contains(.system) {
+                try capture.addStreamOutput(handler, type: .audio, sampleHandlerQueue: sink.queue)
+            }
+            if sources.contains(.microphone) {
+                try capture.addStreamOutput(handler, type: .microphone, sampleHandlerQueue: sink.queue)
+            }
             output = handler
             stream = capture
             try await capture.startCapture()
@@ -87,7 +110,10 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                     let (metrics, error) = await sink.snapshot()
                     guard self.state == .recording else { return }
                     self.summary = metrics
+                    self.captureMetrics = await handler.snapshot()
+                    guard self.state == .recording else { return }
                     self.onUpdate?()
+                    if let message = self.captureMetrics.errorMessage { await self.stop(error: message); return }
                     if let error { await self.stop(error: error.localizedDescription); return }
                     try? await Task.sleep(for: .milliseconds(200))
                 }
@@ -112,6 +138,11 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
         }
         stream = nil
+        if let output {
+            do { try await output.finish() }
+            catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
+            captureMetrics = await output.snapshot()
+        }
         output = nil
         if let writer {
             do { summary = try await writer.finish() }
@@ -142,16 +173,5 @@ final class SystemAudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             return "请在系统设置 → 隐私与安全性 → 屏幕与系统音频录制中允许 Scriber，然后重启应用重试。"
         }
         return error.localizedDescription
-    }
-}
-
-private final class SystemAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
-    let writer: AudioSampleWriter
-    init(writer: AudioSampleWriter) { self.writer = writer }
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
-                of type: SCStreamOutputType) {
-        if type == .audio, sampleBuffer.isValid, sampleBuffer.dataReadiness == .ready {
-            writer.append(sampleBuffer)
-        }
     }
 }

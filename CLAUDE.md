@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-原生麦克风录音已接入 AVAudioRecorder；电脑声音已有 ScreenCaptureKit 音频引擎与实际信号验证入口，主面板混音与录屏仍待实现。AudioSampleWriter 提供串行编码、时间戳和电平校验。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
+主面板暂使用 AVAudioRecorder 麦克风路径；新的 AudioRecorder 已通过 ScreenCaptureKit 真实双路采集、采样率转换、混音及中断保存验证，主面板双路控制与录屏仍待接入。MixedAudioOutput 把原始采集时间映射到 AudioTimelineMixer，经 AudioPCMConverter 转换后由 AudioSampleWriter 串行编码。已验证内置麦克风和 Jabra USB 的 48k / 16k 输入，蓝牙与设备切换仍待验收。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
 
 ## 约定
 
