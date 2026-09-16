@@ -29,6 +29,10 @@ This log concerns the native application. Browser-prototype checks in design/QA.
 
 ![Native microphone panel, offscreen render](screenshots/native-microphone.png)
 
-## Outstanding acceptance
+## PCM writer component — 2026-09-16
+
+swift test passes three cases: generated PCM fixture encoded to AAC and fully decoded with expected frame count/duration/RMS/peak; a repeated old timestamp is rejected while the already-written valid prefix remains playable; an empty capture cannot report success. These are codec/component tests, not evidence of actual system-audio capture.
+
+## Remaining system acceptance
 
 System audio and mixed capture, identifiable calibration signals, screen selection/video outputs, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Synchronous mic-only shutdown is not proof that a future asynchronous video/mixing writer will shut down safely; that path must be tested separately.
