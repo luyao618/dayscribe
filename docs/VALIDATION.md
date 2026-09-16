@@ -62,6 +62,13 @@ swift test passes three cases: generated PCM fixture encoded to AAC and fully de
 - The mixer sums selected sources and clamps samples to the legal PCM range, reporting the number of saturated samples. Source changes cannot disable every source or rewrite audio already emitted.
 - All seven mixer cases plus the existing five AAC writer cases pass. Debug app build/signature verification passes. These are deterministic component checks, not evidence of actual mixed hardware capture, device resampling or the required 8h/2h recordings. The approved panel is unchanged in this increment.
 
+## Streaming native PCM conversion — 2026-09-16
+
+- Added a queue-confined AVAudioConverter adapter for continuous native PCM to interleaved 48kHz stereo. Mono maps equally to left/right; stereo retains its channel order. Converter state survives packet boundaries, and CoreMedia sample data is copied into a bounded input buffer. Each input call accepts at most one second of native audio; output has an explicit size ceiling.
+- Initial independent impulse tests exposed the latency introduced by primeMethod.none (48 output frames for 16kHz, 17 for 44.1kHz). Switching to normal priming removes the shift; both impulse positions now fall within one output frame of their known source times. Temporary input starvation uses noDataNow; final endOfStream drains the filter tail.
+- Eleven converter cases pass: six native-rate/layout/representation combinations (16/44.1/48/96kHz, mono/stereo, planar/interleaved, Float32/Int16), two fractional-tail/CoreMedia cases, two impulse-timing cases, and invalid-input/lifecycle handling. Streaming results match single-buffer conversion within 0.00005 sample amplitude, retain known tones and channel identity, and have the correct cumulative duration. Fractional final duration is rounded down once to the last complete 48kHz frame (less than 20.84µs), without per-packet truncation.
+- All 23 component cases (13 test functions across three suites) pass, as does the native debug build/signature check. These generated fixtures do not prove actual microphone/system mixing, device switching, or long-duration capture. Native capture timestamp mapping and integration are still next.
+
 ## Remaining acceptance
 
 Mixed capture and source switching, a calibrated microphone signal, screen selection/video outputs, Bluetooth and wired microphone routes, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit async system-audio stop is verified; final OS-driven quit/sleep and video/mixing shutdown still need dedicated checks.
