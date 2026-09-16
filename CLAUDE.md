@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-原生应用骨架已建立：Package.swift、Sources/Scriber 和 scripts/build-app.sh。真实录制引擎尚未接入，原生按钮暂时禁用。design/ 仍是视觉和交互基线，其中的模拟声音和文件不能用于证明真实录制能力。
+原生麦克风录音已接入 AVAudioRecorder，包含真实电平、M4A 保存与短时诊断入口；系统声音、混音和录屏仍待实现。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
 
 ## 约定
 
