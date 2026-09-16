@@ -23,13 +23,15 @@
 
 [Goal Prompt](GOAL.md) 已包含逐步提交小 PR、检查与自审通过后自动合并的交付要求。
 
-## UI 设计
+## UI 原型
 
-[设计说明](design/DESIGN.md)
+[打开面板原型](design/index.html) · [设计说明](design/DESIGN.md) · [验证记录](design/QA.md)
 
 常驻菜单栏的小面板，支持演示录音、选区录屏、录制中改名、双声音电平、保存路径和历史记录。声音与文件均为演示数据。
 
-交互原型及其验证材料已经在本地完成，将由紧随其后的独立 PR 纳入仓库。
+本地预览：运行 `python3 -m http.server 8765 --bind 127.0.0.1`，打开 [http://127.0.0.1:8765/design/](http://127.0.0.1:8765/design/)。
+
+![Scriber 录制面板](design/screenshots/panel-preview.png)
 
 第一版聚焦录制入口、录制状态、停止与文件保存。具体交互和录制范围见 [IDEAS.md](IDEAS.md)。
 

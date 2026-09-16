@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Scriber · 菜单栏面板</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M5 10v4M9 6v12M13 3v18M17 7v10M21 10v4"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M9 21h6"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M3 8h18"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 5v6h6M12 7v5l3 2"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3-.6 2.2-2 .9-2-.7-2 3.4 1.6 1.5-.2 2.2L2 14l2 3.5 2.1-.5 1.8 1.3.3 2.2h4l.8-2 2.1-.8 2 .8 2.3-3.3-1.4-1.7.1-2.2 1.7-1.3L18 6.5l-2.2.3L14 5.5 13.5 3Z"/><circle cx="11" cy="12" r="3"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M4 16 16 4a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3L8 20l-5 1Z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-region" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5M8 3h1m6 0h1M3 10v4m18-4v4M10 21h4"/></symbol>
+    <symbol id="i-window" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M6 6.5h.01M9 6.5h.01"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 15 15 9M7 13l-2 2a4 4 0 0 0 6 6l3-3M10 6l3-3a4 4 0 0 1 6 6l-2 2"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="m11 4-6 5H2v6h3l6 5ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="20" r=".8"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 26 24"><rect x="2" y="7" width="19" height="10" rx="2"/><path d="M24 10v4"/><rect x="5" y="10" width="13" height="4" rx=".8" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+
+  <main class="desktop" id="desktop">
+    <div class="wallpaper" aria-hidden="true"><div class="ribbon ribbon-a"></div><div class="ribbon ribbon-b"></div><div class="ribbon ribbon-c"></div></div>
+    <header class="menubar">
+      <div class="menu-left" aria-hidden="true"><span class="apple">●</span><strong>Finder</strong><span>文件</span><span>编辑</span><span>显示</span><span>前往</span></div>
+      <div class="menu-right">
+        <button id="menu-trigger" class="menu-trigger" aria-label="打开或收起 Scriber 面板" aria-expanded="true" aria-controls="popover"><svg class="icon"><use href="#i-mark"/></svg><span id="menu-time"></span><span class="menu-rec-dot" id="menu-rec-dot" hidden></span></button>
+        <span class="system-icon" aria-hidden="true"><svg class="icon"><use href="#i-wifi"/></svg></span>
+        <span class="system-icon" aria-hidden="true"><svg class="icon battery"><use href="#i-battery"/></svg></span>
+        <span class="menu-date">9月16日 周三 16:40</span>
+      </div>
+    </header>
+
+    <div class="ambient-window" id="sample-window" aria-hidden="true">
+      <div class="ambient-title"><span class="traffic"><i></i><i></i><i></i></span><span>产品例会</span><span>•••</span></div>
+      <div class="ambient-body"><div class="agenda-kicker">WEEKLY SYNC</div><div class="agenda-title">本周进展<br>与下一步计划</div><div class="agenda-line"></div><div class="agenda-lines"><i></i><i></i><i></i></div><div class="participants"><span>YL</span><span>AC</span><span>JL</span><small>正在共享屏幕</small></div></div>
+    </div>
+
+    <section class="popover" id="popover" aria-label="Scriber 录制面板">
+      <header class="panel-header">
+        <div class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-mark"/></svg></span><span>Scriber</span></div>
+        <div class="header-actions"><button class="icon-button" id="history-button" aria-label="录制历史" title="录制历史"><svg class="icon"><use href="#i-history"/></svg></button><button class="icon-button" id="settings-button" aria-label="保存位置与设置" title="保存位置与设置"><svg class="icon"><use href="#i-settings"/></svg></button></div>
+      </header>
+
+      <div id="recorder-view" class="view">
+        <div class="mode-switch" role="tablist" aria-label="录制模式"><button class="mode-tab active" id="audio-tab" role="tab" aria-selected="true" data-mode="audio"><svg class="icon"><use href="#i-mic"/></svg>录音</button><button class="mode-tab" id="video-tab" role="tab" aria-selected="false" data-mode="video"><svg class="icon"><use href="#i-screen"/></svg>录屏</button></div>
+        <div class="recording-summary">
+          <div class="recording-status" id="recording-status" role="status"><span class="status-dot"></span><span id="status-text">准备录音</span></div>
+          <div class="timer" id="timer" aria-label="已录制时长">00:00<span>:00</span></div>
+          <div class="filename-wrap"><input id="filename" aria-label="录制文件名" value="产品例会" maxlength="80" spellcheck="false"><svg class="icon filename-edit"><use href="#i-edit"/></svg></div>
+          <div class="filename-error" id="filename-error" role="alert" hidden></div>
+        </div>
+
+        <div class="capture-target" id="capture-target" hidden><svg class="icon"><use id="target-icon" href="#i-region"/></svg><span id="target-label">自选区域</span><span class="target-dimensions" id="target-dimensions">开始前选择</span><select id="capture-type" aria-label="录屏范围"><option value="region">自选区域</option><option value="window">单个窗口</option><option value="display">整块屏幕</option></select></div>
+
+        <section class="sound-section" aria-label="声音来源">
+          <div class="section-label"><span>声音来源</span><span id="source-count">2 路已开启</span></div>
+          <div class="sources">
+            <div class="source-row" id="system-row">
+              <div class="source-top"><span class="source-symbol system"><svg class="icon"><use href="#i-screen"/></svg></span><span class="source-name">电脑声音</span><span class="source-status" id="system-status">已检测到声音</span><button class="toggle on" id="system-toggle" role="switch" aria-checked="true" aria-label="电脑声音"><span></span></button></div>
+              <div class="meter-line"><div class="meter system-meter" id="system-meter" aria-label="电脑声音电平"></div><span class="db-label" id="system-db">−18 dB</span></div>
+            </div>
+            <div class="source-row" id="mic-row">
+              <div class="source-top"><span class="source-symbol mic"><svg class="icon"><use href="#i-mic"/></svg></span><span class="source-name">麦克风</span><span class="source-status" id="mic-status">已检测到声音</span><button class="toggle on" id="mic-toggle" role="switch" aria-checked="true" aria-label="麦克风"><span></span></button></div>
+              <div class="meter-line"><div class="meter mic-meter" id="mic-meter" aria-label="麦克风电平"></div><span class="db-label" id="mic-db">−26 dB</span></div>
+            </div>
+          </div>
+        </section>
+        <button class="destination" id="destination-button"><span class="folder-symbol"><svg class="icon"><use href="#i-folder"/></svg></span><span class="destination-text"><small>保存到</small><span id="destination-path">Movies / Scriber / 录音</span></span><span class="destination-change">更改<svg class="icon"><use href="#i-chevron"/></svg></span></button>
+        <button class="primary-button" id="record-button"><span class="record-glyph" id="record-glyph"></span><span id="record-button-label">开始录音</span></button>
+        <div class="output-note" id="output-note">保存为 M4A 音频</div>
+        <div class="recent-section"><div class="section-label"><span>最近录制</span><button class="text-button" id="all-history">查看全部<svg class="icon"><use href="#i-chevron"/></svg></button></div><div id="recent-list"></div></div>
+      </div>
+
+      <div id="settings-view" class="view subview" hidden>
+        <div class="subview-heading"><button class="icon-button back-button" aria-label="返回录制面板"><svg class="icon"><use href="#i-back"/></svg></button><h1>保存位置</h1></div>
+        <p class="view-description">选好位置，每次录完自动保存。</p>
+        <form id="settings-form">
+          <label class="path-card"><span class="path-card-title"><svg class="icon"><use href="#i-mic"/></svg>录音文件</span><input id="audio-path" aria-label="录音存储路径" value="~/Movies/Scriber/录音" required><span class="path-caption">一份包含所选声音的音频文件</span></label>
+          <label class="path-card"><span class="path-card-title"><svg class="icon"><use href="#i-screen"/></svg>录屏文件</span><input id="video-path" aria-label="录屏存储路径" value="~/Movies/Scriber/录屏" required><span class="path-caption">视频和独立音频会放在一起</span></label>
+          <p id="path-recording-note" class="inline-note" hidden>当前录制仍保存在原位置，新位置从下次开始使用。</p>
+          <button class="primary-button" type="submit">保存位置</button>
+        </form>
+        <div class="settings-tip"><svg class="icon"><use href="#i-folder"/></svg><p>文件保留在你选择的目录里，<br>随时可以从 Finder 打开。</p></div>
+      </div>
+
+      <div id="history-view" class="view subview" hidden>
+        <div class="subview-heading"><button class="icon-button back-button" aria-label="返回录制面板"><svg class="icon"><use href="#i-back"/></svg></button><h1>录制历史</h1><span class="history-count" id="history-count"></span></div>
+        <label class="search-wrap"><svg class="icon"><use href="#i-search"/></svg><input id="history-search" placeholder="搜索录制名称" aria-label="搜索录制名称"></label>
+        <div id="history-list" class="history-list"></div>
+      </div>
+
+      <div id="detail-view" class="view subview" hidden>
+        <div class="subview-heading"><button class="icon-button" id="detail-back" aria-label="返回录制历史"><svg class="icon"><use href="#i-back"/></svg></button><h1>录制详情</h1></div>
+        <div class="detail-filename"><input id="detail-name" aria-label="修改历史录制名称" maxlength="80"><svg class="icon"><use href="#i-edit"/></svg></div>
+        <p class="detail-meta" id="detail-meta"></p>
+        <div class="demo-player" id="demo-player"><svg class="icon player-mode-icon" id="player-mode-icon"><use href="#i-mark"/></svg><span id="player-label">音频预览</span><span class="player-demo-label">演示素材</span></div>
+        <div class="player-controls"><button class="icon-button" id="player-play" aria-label="播放演示"><svg class="icon"><use id="player-play-icon" href="#i-play"/></svg></button><span id="player-time">00:00</span><input type="range" id="player-progress" min="0" max="100" value="0" aria-label="播放进度"><span id="player-duration">32:18</span></div>
+        <div class="section-label detail-files-label">文件</div><div id="detail-files"></div>
+      </div>
+      <div class="panel-toast" id="toast" role="status" hidden><svg class="icon"><use href="#i-check"/></svg><span id="toast-text"></span></div>
+    </section>
+
+    <div id="selection-overlay" class="selection-overlay" hidden>
+      <div class="selection-instructions"><span id="selection-instruction">拖动鼠标，框选要录制的区域</span><span><kbd>esc</kbd> 取消</span></div>
+      <div class="selection-types" role="group" aria-label="选择录屏范围"><button data-select-type="region" class="active"><svg class="icon"><use href="#i-region"/></svg>区域</button><button data-select-type="window"><svg class="icon"><use href="#i-window"/></svg>窗口</button><button data-select-type="display"><svg class="icon"><use href="#i-screen"/></svg>全屏</button></div>
+      <div id="selection-rect" class="selection-rect" hidden><i></i><i></i><i></i><i></i><span id="selection-size"></span></div>
+      <div class="selection-confirm" id="selection-confirm" hidden><button id="cancel-selection" class="selection-cancel">取消</button><span><svg class="icon"><use href="#i-volume"/></svg><span id="selection-audio-label">2 路声音</span></span><button id="confirm-selection" class="primary-button"><span class="record-glyph"></span>开始录屏</button></div>
+    </div>
+
+    <aside class="prototype-toolbar" aria-label="原型演示控制">
+      <div class="prototype-caption"><span class="prototype-badge">UI 原型</span><span>声音、文件与播放均为演示</span></div>
+      <div class="state-buttons"><button data-scene="idle" class="selected">待机</button><button data-scene="audio">录音中</button><button data-scene="video">录屏中</button><button data-scene="saved">已保存</button></div>
+      <span class="prototype-shortcut"><kbd>⌥</kbd><kbd>R</kbd> 呼出面板</span>
+    </aside>
+  </main>
+  <script src="panel.js"></script>
+</body>
+</html>
