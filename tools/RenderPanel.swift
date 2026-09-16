@@ -6,13 +6,19 @@ import SwiftUI
 enum RenderPanel {
     @MainActor
     static func main() throws {
-        guard CommandLine.arguments.count == 2 else {
+        guard (2...3).contains(CommandLine.arguments.count) else {
             throw NSError(domain: "RenderPanel", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Usage: RenderPanel output.png"
+                NSLocalizedDescriptionKey: "Usage: RenderPanel output.png [system]"
             ])
         }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let content = RecorderPanel(microphone: MicrophoneRecorder())
+        let panel: AnyView
+        if CommandLine.arguments.count == 3, CommandLine.arguments[2] == "system" {
+            panel = AnyView(SystemAudioCheckPanel(recorder: SystemAudioRecorder(), onStop: {}))
+        } else {
+            panel = AnyView(RecorderPanel(microphone: MicrophoneRecorder()))
+        }
+        let content = panel
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .light)
         let renderer = ImageRenderer(content: content)

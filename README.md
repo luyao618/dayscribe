@@ -17,11 +17,11 @@
 
 每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；原生麦克风录音已接入，电脑声音、混音和录屏仍在实现中。
+> 2026-09-16 重新确定方向。Scriber 为候选名称；原生麦克风录音已接入，电脑声音引擎已通过诊断验证，混音和录屏仍在实现中。
 
 ## 原生应用开发
 
-当前原生版本已接入麦克风录音、真实电平和 M4A 保存；电脑声音、混音和录屏仍待后续 PR 接入。
+当前主面板支持麦克风录音、真实电平和 M4A 保存。电脑声音已有独立的原生采集与诊断入口，主面板双路混音和录屏将在后续 PR 接入。
 
 需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角按钮退出应用。
 
@@ -30,6 +30,10 @@
 短时真实麦克风检查：先退出普通 Scriber，再运行 `open build/Scriber.app --args --show-panel --microphone-check /absolute/output/directory 5`。允许系统麦克风权限后，应用录制指定的真实时间，保存 M4A 和 result.json 并退出。中途退出会标记为 interrupted，不算完成请求的时长。测试音频请保留在本地，不提交进仓库。
 
 也可运行 `scripts/check-microphone.py --seconds 5`，或 `scripts/check-microphone.py --seconds 30 --interrupt-after 2` 验证录制中退出。脚本需要 ffmpeg / ffprobe，仅用于检查文件时长和完整解码，不是应用运行依赖。
+
+电脑声音检查：`scripts/check-system-audio.py --seconds 8` 会通过系统播放两段很轻的已知频率测试音，并从实际录制文件检查频率、顺序、时长和完整解码；`--seconds 30 --interrupt-after 5` 可验证异步退出保存。仅写音频，不保存屏幕画面。首次需要在系统设置中允许 Scriber 的屏幕与系统音频录制权限。
+
+只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
 
 [实现说明与验收标准](SPEC.md) 已就绪，包含平台默认值、长时录制目标、设备变化处理及建议 Goal 文本。
 
