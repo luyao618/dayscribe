@@ -55,6 +55,13 @@ swift test passes three cases: generated PCM fixture encoded to AAC and fully de
 ![Native audio panel, idle offscreen render](screenshots/native-panel-audio.png)
 ![Native video panel, unavailable idle offscreen render](screenshots/native-panel-video.png)
 
+## Common-timeline mixer component — 2026-09-16
+
+- Added a queue-confined 48kHz stereo PCM mixer with a fixed two-second ring per source and a 250ms holdback for callback arrival differences. Output blocks are emitted synchronously. These bounds apply to the mixer component; complete capture-pipeline memory behavior still requires integration and long tests.
+- Seven generated-PCM tests verify cross-source arrival ordering and capture-time offsets, left/right channel preservation, source changes inside a buffered block, pre-epoch trimming, gaps and final silence, per-source RMS and saturation counts, explicit rejection of late/overlapping/excessively distant data, and propagation of downstream write failures. A wraparound test verifies old samples are cleared and buffered duration stays bounded.
+- The mixer sums selected sources and clamps samples to the legal PCM range, reporting the number of saturated samples. Source changes cannot disable every source or rewrite audio already emitted.
+- All seven mixer cases plus the existing five AAC writer cases pass. Debug app build/signature verification passes. These are deterministic component checks, not evidence of actual mixed hardware capture, device resampling or the required 8h/2h recordings. The approved panel is unchanged in this increment.
+
 ## Remaining acceptance
 
 Mixed capture and source switching, a calibrated microphone signal, screen selection/video outputs, Bluetooth and wired microphone routes, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit async system-audio stop is verified; final OS-driven quit/sleep and video/mixing shutdown still need dedicated checks.
