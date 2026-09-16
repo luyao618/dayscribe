@@ -32,8 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: RecorderPanel(microphone: microphone))
-        popover.contentSize = NSSize(width: 390, height: 400)
+        let panel = NSHostingController(rootView: RecorderPanel(microphone: microphone))
+        panel.sizingOptions = [.preferredContentSize]
+        panel.view.appearance = NSAppearance(named: .aqua)
+        popover.contentViewController = panel
+        popover.contentSize = panel.view.fittingSize
         microphone.onCompletion = { [weak self] error in
             guard let self else { return }
             let wasCheck = self.checkDirectory != nil

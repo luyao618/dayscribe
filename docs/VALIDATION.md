@@ -44,6 +44,17 @@ swift test passes three cases: generated PCM fixture encoded to AAC and fully de
 
 ![System audio diagnostic panel, offscreen render](screenshots/native-system-check.png)
 
+## Approved native panel restoration — 2026-09-16
+
+- Restored the approved panel structure and palette: 390pt pearl surface, rounded brand/header actions, inset mode selector, split-color clock and filename, two-source card, destination, rectangular start/stop action, and recent recording section. The recording state uses the real microphone's elapsed time, filename and measured power; no demo values are injected.
+- Offscreen SwiftUI renders below were visually compared with design/screenshots/panel-preview.png. They show idle audio/video states; the approved reference shows an active video recording. The native host fitting sizes are 390×631pt for audio and 390×678pt for video. NSPopover now follows preferred content size instead of a fixed 400pt height.
+- System audio selection, video recording, renaming, destination changes and full history remain explicitly unavailable at this increment. Recent recording displays the latest successful microphone file from this app session and reveals that actual file in Finder. This is not yet persistent history.
+- Debug build and Apple Development bundle signature verification passed. A real 5s microphone regression produced a 5.013s AAC/M4A that completely decoded; measured peak was −34.2dBFS. Local evidence: artifacts/mic-check-4j6uhz8e. No capture or writer code changed in this PR.
+- The desktop CUA connector again timed out after launching the application. These images are offscreen renders of the native SwiftUI view, not desktop screenshots. Menu-bar clicks, dynamic popover resizing, keyboard navigation and nested settings interaction still require actual GUI verification.
+
+![Native audio panel, idle offscreen render](screenshots/native-panel-audio.png)
+![Native video panel, unavailable idle offscreen render](screenshots/native-panel-video.png)
+
 ## Remaining acceptance
 
 Mixed capture and source switching, a calibrated microphone signal, screen selection/video outputs, Bluetooth and wired microphone routes, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit async system-audio stop is verified; final OS-driven quit/sleep and video/mixing shutdown still need dedicated checks.
