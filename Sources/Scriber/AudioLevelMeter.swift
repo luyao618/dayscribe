@@ -3,6 +3,7 @@ import SwiftUI
 struct AudioLevelMeter: View {
     let powerDB: Float
     var tint = Color(red: 0.22, green: 0.60, blue: 0.50)
+    var label = "麦克风真实电平"
     private let segments = 28
 
     private var activeSegments: Int {
@@ -19,7 +20,7 @@ struct AudioLevelMeter: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("麦克风真实电平")
+        .accessibilityLabel(label)
         .accessibilityValue(String(format: "%.0f dBFS", powerDB))
     }
 }

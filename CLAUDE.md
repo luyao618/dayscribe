@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-原生麦克风录音已接入 AVAudioRecorder，包含真实电平、M4A 保存与短时诊断入口；系统声音、混音和录屏仍待实现。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
+原生麦克风录音已接入 AVAudioRecorder；电脑声音已有 ScreenCaptureKit 音频引擎与实际信号验证入口，主面板混音与录屏仍待实现。AudioSampleWriter 提供串行编码、时间戳和电平校验。代码位于 Sources/Scriber，构建入口 scripts/build-app.sh，实际验证见 docs/VALIDATION.md。design/ 仍是视觉和交互基线，不能用于证明真实录制能力。
 
 ## 约定
 

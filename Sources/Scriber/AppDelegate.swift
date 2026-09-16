@@ -1,5 +1,7 @@
 import AppKit
+import AVFoundation
 import Combine
+import CoreGraphics
 import Darwin
 import SwiftUI
 
@@ -13,8 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wantsToQuit = false
     private var checkDirectory: URL?
     private var checkDuration: TimeInterval = 0
+    private var systemCheck: SystemAudioDiagnostic?
+    private var terminationDeferred = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if writePermissionCheckIfRequested() { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = item.button else { return }
         button.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Scriber")
@@ -46,17 +51,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         signal(SIGTERM, SIG_IGN)
         let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         // Enter AppKit's quit path from the native main queue, not a Swift task.
-        signalSource.setEventHandler { DispatchQueue.main.async { NSApp.terminate(nil) } }
+        signalSource.setEventHandler { [weak self] in
+            DispatchQueue.main.async { self?.requestQuit() }
+        }
         signalSource.resume()
         terminationSignal = signalSource
 
+        startCheckIfRequested()
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
         }
-        startCheckIfRequested()
+    }
+
+    private func writePermissionCheckIfRequested() -> Bool {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "--capture-permission-check") else { return false }
+        defer { NSApp.terminate(nil) }
+        guard arguments.count > index + 1, arguments[index + 1].hasPrefix("/") else { return true }
+        let result: [String: Any] = [
+            "screenAuthorized": CGPreflightScreenCaptureAccess(),
+            "microphoneAuthorized": AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "",
+            "pid": ProcessInfo.processInfo.processIdentifier
+        ]
+        do {
+            let url = URL(fileURLWithPath: arguments[index + 1])
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+                .write(to: url, options: .atomic)
+        } catch { NSLog("Permission preflight report failed: %@", error.localizedDescription) }
+        return true
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if let systemCheck, systemCheck.recorder.state.active {
+            terminationDeferred = true
+            Task { await systemCheck.stop() }
+            return .terminateLater
+        }
         // AVAudioRecorder.stop() synchronously closes its output file. Do not
         // wait here for our asynchronous duration/metadata callback: AppKit's
         // termination loop can prevent that main-actor callback from executing.
@@ -72,6 +104,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startCheckIfRequested() {
         let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--system-audio-check") {
+            guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
+                  let seconds = Double(arguments[index + 2]), seconds.isFinite, seconds > 0 else {
+                NSLog("Usage: --system-audio-check /absolute/output/directory seconds")
+                NSApp.terminate(nil)
+                return
+            }
+            let check = SystemAudioDiagnostic(
+                directory: URL(fileURLWithPath: arguments[index + 1], isDirectory: true),
+                seconds: seconds,
+                onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
+                onFinished: { [weak self] in
+                    if self?.terminationDeferred == true {
+                        NSApp.reply(toApplicationShouldTerminate: true)
+                    } else {
+                        NSApp.terminate(nil)
+                    }
+                })
+            systemCheck = check
+            popover.contentViewController = NSHostingController(rootView: SystemAudioCheckPanel(
+                recorder: check.recorder, onStop: { [weak self] in self?.requestQuit() }))
+            check.start()
+            return
+        }
         guard let index = arguments.firstIndex(of: "--microphone-check") else { return }
         guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
               let duration = Double(arguments[index + 2]),
@@ -84,6 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkDirectory = directory
         checkDuration = duration
         Task { await microphone.start(directory: directory, duration: duration) }
+    }
+
+    private func requestQuit() {
+        if let systemCheck, systemCheck.recorder.state.active {
+            Task { await systemCheck.stop() }
+        } else {
+            NSApp.terminate(nil)
+        }
     }
 
     private func completeCheck(error: String?) {
