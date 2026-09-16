@@ -12,7 +12,7 @@ enum RenderPanel {
             ])
         }
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let content = RecorderPanel()
+        let content = RecorderPanel(microphone: MicrophoneRecorder())
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .light)
         let renderer = ImageRenderer(content: content)

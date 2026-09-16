@@ -17,15 +17,19 @@
 
 每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；已有 UI 原型与原生应用骨架，真实录制引擎尚未接入。
+> 2026-09-16 重新确定方向。Scriber 为候选名称；原生麦克风录音已接入，电脑声音、混音和录屏仍在实现中。
 
 ## 原生应用开发
 
-原生菜单栏骨架已建立，真实录制引擎尚未接入，录制按钮暂时禁用。
+当前原生版本已接入麦克风录音、真实电平和 M4A 保存；电脑声音、混音和录屏仍待后续 PR 接入。
 
 需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角按钮退出应用。
 
-脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。无需付费开发者账号；如已有本地代码签名身份，可设置 `SCRIBER_SIGN_IDENTITY`。
+脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
+
+短时真实麦克风检查：先退出普通 Scriber，再运行 `open build/Scriber.app --args --show-panel --microphone-check /absolute/output/directory 5`。允许系统麦克风权限后，应用录制指定的真实时间，保存 M4A 和 result.json 并退出。中途退出会标记为 interrupted，不算完成请求的时长。测试音频请保留在本地，不提交进仓库。
+
+也可运行 `scripts/check-microphone.py --seconds 5`，或 `scripts/check-microphone.py --seconds 30 --interrupt-after 2` 验证录制中退出。脚本需要 ffmpeg / ffprobe，仅用于检查文件时长和完整解码，不是应用运行依赖。
 
 [实现说明与验收标准](SPEC.md) 已就绪，包含平台默认值、长时录制目标、设备变化处理及建议 Goal 文本。
 

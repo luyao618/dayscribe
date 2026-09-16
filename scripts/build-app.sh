@@ -22,10 +22,18 @@ install -m 755 "$binary_dir/Scriber" "$app_dir/Contents/MacOS/Scriber"
 install -m 644 App/Info.plist "$app_dir/Contents/Info.plist"
 printf 'APPL????' > "$app_dir/Contents/PkgInfo"
 
-# Ad-hoc signing supports this local-use app without a paid developer account.
-# Set SCRIBER_SIGN_IDENTITY to use an existing local code-signing identity.
+# Prefer the sole existing Apple Development identity so the app's identity
+# remains stable across builds. Never create a certificate or alter trust.
+# An explicit override wins; no/ambiguous development identity uses ad-hoc.
 sign_identity="$(printenv SCRIBER_SIGN_IDENTITY || true)"
-if [ -z "$sign_identity" ]; then sign_identity=-; fi
+if [ -z "$sign_identity" ]; then
+  development_identities="$(security find-identity -v -p codesigning 2>/dev/null |
+    awk '/"Apple Development:/ {print $2}' || true)"
+  case "$development_identities" in
+    ""|*$'\n'*) sign_identity=- ;;
+    *) sign_identity="$development_identities" ;;
+  esac
+fi
 codesign --force --sign "$sign_identity" --timestamp=none "$app_dir"
 codesign --verify --strict "$app_dir"
 printf '%s\n' "$app_dir"
