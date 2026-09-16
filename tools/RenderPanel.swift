@@ -8,7 +8,7 @@ enum RenderPanel {
     static func main() throws {
         guard (2...3).contains(CommandLine.arguments.count) else {
             throw NSError(domain: "RenderPanel", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Usage: RenderPanel output.png [system]"
+                NSLocalizedDescriptionKey: "Usage: RenderPanel output.png [system|video]"
             ])
         }
         NSApplication.shared.setActivationPolicy(.prohibited)
@@ -16,7 +16,8 @@ enum RenderPanel {
         if CommandLine.arguments.count == 3, CommandLine.arguments[2] == "system" {
             panel = AnyView(SystemAudioCheckPanel(recorder: SystemAudioRecorder(), onStop: {}))
         } else {
-            panel = AnyView(RecorderPanel(microphone: MicrophoneRecorder()))
+            panel = AnyView(RecorderPanel(microphone: MicrophoneRecorder(),
+                                         mode: CommandLine.arguments.last == "video" ? .video : .audio))
         }
         let content = panel
             .background(Color(nsColor: .windowBackgroundColor))
