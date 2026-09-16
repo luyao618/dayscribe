@@ -107,16 +107,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startCheckIfRequested() {
         let arguments = CommandLine.arguments
-        if let index = arguments.firstIndex(of: "--system-audio-check") {
+        if let index = arguments.firstIndex(of: "--system-audio-check") ?? arguments.firstIndex(of: "--mixed-audio-check") {
             guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
                   let seconds = Double(arguments[index + 2]), seconds.isFinite, seconds > 0 else {
                 NSLog("Usage: --system-audio-check /absolute/output/directory seconds")
                 NSApp.terminate(nil)
                 return
             }
+            let modeIndex = arguments.firstIndex(of: "--audio-sources")
+            let mode = modeIndex.flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+                ?? (arguments.contains("--mixed-audio-check") ? "both" : "system")
+            let sourceModes: [String: Set<AudioSource>] = ["system": [.system], "microphone": [.microphone], "both": [.system, .microphone]]
+            guard let sources = sourceModes[mode] else { NSApp.terminate(nil); return }
+            let deviceIndex = arguments.firstIndex(of: "--microphone-device")
+            let device = deviceIndex.flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
             let check = SystemAudioDiagnostic(
                 directory: URL(fileURLWithPath: arguments[index + 1], isDirectory: true),
-                seconds: seconds,
+                seconds: seconds, sources: sources, microphoneDeviceID: device,
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {

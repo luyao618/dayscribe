@@ -17,13 +17,13 @@
 
 每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；原生麦克风录音已接入，电脑声音引擎已通过诊断验证，混音和录屏仍在实现中。
+> 2026-09-16 重新确定方向。Scriber 为候选名称；真实双路音频采集与混音已通过诊断验证，主面板接入和录屏仍在实现中。
 
 ## 原生应用开发
 
-当前主面板支持麦克风录音、真实电平和 M4A 保存。电脑声音已有独立的原生采集与诊断入口，主面板双路混音和录屏将在后续 PR 接入。
+当前主面板支持麦克风录音、真实电平和 M4A 保存。新的 AudioRecorder 引擎支持电脑声音与麦克风单独或同时采集，并保存一份混合 M4A；已验证内置麦克风和 Jabra USB 的不同采样率。主面板双路控制和录屏将在后续 PR 接入。
 
-需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角按钮退出应用。
+需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
 
 脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
 
@@ -32,6 +32,8 @@
 也可运行 `scripts/check-microphone.py --seconds 5`，或 `scripts/check-microphone.py --seconds 30 --interrupt-after 2` 验证录制中退出。脚本需要 ffmpeg / ffprobe，仅用于检查文件时长和完整解码，不是应用运行依赖。
 
 电脑声音检查：`scripts/check-system-audio.py --seconds 8` 会通过系统播放两段很轻的已知频率测试音，并从实际录制文件检查频率、顺序、时长和完整解码；`--seconds 30 --interrupt-after 5` 可验证异步退出保存。仅写音频，不保存屏幕画面。首次需要在系统设置中允许 Scriber 的屏幕与系统音频录制权限。
+
+双路混音检查：`scripts/check-system-audio.py --sources both --seconds 8`。麦克风声学校准可使用 `--sources microphone --microphone-device BuiltInMicrophoneDevice --playback-device BuiltInSpeakerDevice`，短测试音只通过内置扬声器播放，录制只取麦克风，保持系统默认设备设置。其他设备 UID 可通过`xcrun swift tools/PlayAudioFixture.swift --devices` 查询；使用 `--expected-microphone-rate` 检查实际输入采样率。每次只生成一份 M4A，原始媒体和诊断数据保存在忽略提交的 artifacts/ 下。这些短测不能替代设备切换、蓝牙和 8 小时 / 2 小时验收。
 
 只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
 

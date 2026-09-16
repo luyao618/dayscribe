@@ -14,7 +14,7 @@ enum RenderPanel {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let panel: AnyView
         if CommandLine.arguments.count == 3, CommandLine.arguments[2] == "system" {
-            panel = AnyView(SystemAudioCheckPanel(recorder: SystemAudioRecorder(), onStop: {}))
+            panel = AnyView(SystemAudioCheckPanel(recorder: AudioRecorder(), onStop: {}))
         } else {
             panel = AnyView(RecorderPanel(microphone: MicrophoneRecorder(),
                                          mode: CommandLine.arguments.last == "video" ? .video : .audio))

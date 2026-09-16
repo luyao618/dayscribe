@@ -110,6 +110,14 @@ final class AudioSampleWriter: @unchecked Sendable {
         }
     }
 
+    /// The mixing pipeline must learn about rejection before reclaiming its PCM.
+    func appendChecked(_ sample: CMSampleBuffer) throws {
+        dispatchPrecondition(condition: .onQueue(queue))
+        guard !closing else { throw AudioWriteError.alreadyFinished }
+        append(sample)
+        if let failure { throw failure }
+    }
+
     func snapshot() async -> (AudioWriteSummary, AudioWriteError?) {
         await withCheckedContinuation { continuation in
             queue.async { continuation.resume(returning: (self.summary, self.failure)) }
