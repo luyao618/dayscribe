@@ -60,7 +60,9 @@ struct RecorderPanel: View {
                     if let error = recorder.controlMessage ?? recorder.errorMessage ?? recorder.sourceFailureMessage ?? shortcut.errorMessage {
                         Text(error)
                             .font(.system(size: 11))
-                            .foregroundStyle(PanelPalette.record)
+                            .foregroundStyle(recorder.isRecording && recorder.sourceFailures.isEmpty &&
+                                             recorder.recoveringSources.isEmpty && recorder.recoveryNotice == error
+                                             ? PanelPalette.jade : PanelPalette.record)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.bottom, 12)
                     }

@@ -17,13 +17,17 @@ final class SystemAudioDiagnostic {
     private let renameCheck: Bool
     private let interruptSource: AudioSource?
     private let reportSourceFailure: Bool
+    private let persistentInterruption: Bool
+    private let failedAdditionCheck: Bool
     private var interrupting: Task<Void, Never>?
+    private var stoppedDuringRecovery = false
     private var renaming: Task<Void, Never>?
     private var renameEvent: [String: Any] = [:]
     private var switching: Task<Void, Never>?
     private var sourceEvents: [[String: Any]] = []
     private var trace: [[String: Any]] = []
     private var renderedRecording = false
+    private var renderedRecovery = false
     private let onStatus: (String) -> Void
     private let onFinished: () -> Void
     private var timer: Task<Void, Never>?
@@ -36,6 +40,7 @@ final class SystemAudioDiagnostic {
          recordScreen: Bool = false, captureRequest: CaptureRequest? = nil, renameCheck: Bool = false,
          interruptSource: AudioSource? = nil,
          reportSourceFailure: Bool = true,
+         persistentInterruption: Bool = false, failedAdditionCheck: Bool = false,
          onStatus: @escaping (String) -> Void,
          onFinished: @escaping () -> Void) {
         self.directory = directory
@@ -49,6 +54,8 @@ final class SystemAudioDiagnostic {
         self.renameCheck = renameCheck
         self.interruptSource = interruptSource
         self.reportSourceFailure = reportSourceFailure
+        self.persistentInterruption = persistentInterruption
+        self.failedAdditionCheck = failedAdditionCheck
         self.onStatus = onStatus
         self.onFinished = onFinished
     }
@@ -64,7 +71,20 @@ final class SystemAudioDiagnostic {
                 interrupting = Task { [weak self] in
                     do { try await Task.sleep(for: .seconds(2)) } catch { return }
                     guard let self else { return }
-                    await self.recorder.interruptSourceForDiagnostic(interruptSource, reportFailure: self.reportSourceFailure)
+                    repeat {
+                        guard !Task.isCancelled, self.recorder.isRecording else { return }
+                        await self.recorder.interruptSourceForDiagnostic(interruptSource, reportFailure: self.reportSourceFailure)
+                        do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+                    } while self.persistentInterruption
+                }
+            }
+            if failedAdditionCheck {
+                switching = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                    guard let self else { return }
+                    let success = await self.recorder.setSources([.system, .microphone])
+                    self.sourceEvents.append(["success": success, "message": self.recorder.controlMessage ?? "",
+                                              "sources": self.recorder.sources.map { $0.rawValue }.sorted()])
                 }
             }
             if renameCheck {
@@ -103,6 +123,7 @@ final class SystemAudioDiagnostic {
     }
 
     func stop() async {
+        stoppedDuringRecovery = stoppedDuringRecovery || !recorder.recoveringSources.isEmpty
         timer?.cancel()
         switching?.cancel()
         renaming?.cancel()
@@ -123,7 +144,7 @@ final class SystemAudioDiagnostic {
         } ?? 0
         let finished = recorder.state == .completed || recorder.state == .failed
         let status = recorder.state == .completed && recorder.interrupted ? "interrupted" : recorder.state.rawValue
-        if switchSources || interruptSource != nil, trace.count < 512 {
+        if switchSources || interruptSource != nil || failedAdditionCheck, trace.count < 512 {
             trace.append(["hostTime": CMClockGetTime(CMClockGetHostTimeClock()).seconds,
                           "sources": recorder.sources.map { $0.rawValue }.sorted(),
                           "receivedFrames": keyed(recorder.captureMetrics.receivedFrames),
@@ -134,6 +155,13 @@ final class SystemAudioDiagnostic {
             if recorder.isRecording, (recorder.summary?.duration ?? 0) > 1, !renderedRecording {
                 renderPanel("panel-recording.png")
                 renderedRecording = true
+            }
+            if recorder.isRecording, !renderedRecovery, !recorder.reconnectCounts.isEmpty,
+               (recorder.summary?.duration ?? 0) > 3,
+               recorder.sourceFailures.isEmpty, recorder.recoveringSources.isEmpty,
+               recorder.recoveryNotice?.contains("已恢复") == true {
+                renderPanel("panel-recovered.png")
+                renderedRecovery = true
             }
             if finished { renderPanel(recorder.state == .completed ? "panel-saved.png" : "panel-failed.png") }
         }
@@ -173,6 +201,11 @@ final class SystemAudioDiagnostic {
             "sourceEvents": sourceEvents,
             "sourceTrace": trace,
             "sourceFailures": keyed(recorder.sourceFailures),
+            "reconnectCounts": keyed(recorder.reconnectCounts),
+            "recoveringSources": recorder.recoveringSources.map { $0.rawValue }.sorted(),
+            "recoveryNotice": recorder.recoveryNotice ?? "",
+            "stoppedDuringRecovery": stoppedDuringRecovery,
+            "microphoneDeviceID": recorder.microphoneDeviceID ?? "",
             "microphoneName": recorder.microphoneName
         ]
         do {

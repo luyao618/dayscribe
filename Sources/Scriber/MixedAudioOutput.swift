@@ -64,6 +64,9 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         await withCheckedContinuation { continuation in
             writer.queue.async {
                 self.streamIdentities[source] = identity
+                // Re-admit a retired source. Audibility is still controlled by
+                // the mixer's user-selected gates, including during preparation.
+                self.sources.insert(source)
                 continuation.resume()
             }
         }
