@@ -17,11 +17,11 @@
 
 每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；主面板已接入双路音频引擎。新的运行中独立启停方案等待解锁后的真实验证，录屏仍在实现中。
+> 2026-09-16 重新确定方向。Scriber 为候选名称；主面板已接入双路音频引擎。运行中独立声音启停已通过内置与 USB 设备实测，录屏仍在实现中。
 
 ## 原生应用开发
 
-当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换已实现；最终独立采集流启停和 AppKit 退出仍待真实验证。录屏、改名、目录设置和完整历史尚未接入。
+当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。录屏、改名、目录设置和完整历史尚未接入。
 
 需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
 
@@ -35,7 +35,7 @@
 
 双路混音检查：`scripts/check-system-audio.py --sources both --seconds 8`。麦克风声学校准可使用 `--sources microphone --microphone-device BuiltInMicrophoneDevice --playback-device BuiltInSpeakerDevice`，短测试音只通过内置扬声器播放，录制只取麦克风，保持系统默认设备设置。其他设备 UID 可通过`xcrun swift tools/PlayAudioFixture.swift --devices` 查询；使用 `--expected-microphone-rate` 检查实际输入采样率。每次只生成一份 M4A，原始媒体和诊断数据保存在忽略提交的 artifacts/ 下。这些短测不能替代设备切换、蓝牙和 8 小时 / 2 小时验收。
 
-主面板与运行中切换检查：`scripts/check-source-switching.py` 会录制 11 秒并检查声音开关、底层回调、输出信号和最后一路保护；支持 `--sources` 与 `--microphone-device`。AppKit 退出检查可用 `scripts/check-system-audio.py --panel --sources both --seconds 30 --interrupt-after 5 --quit-via-appkit`。这两项最终验证等待 Mac 解锁并亮屏。
+主面板与运行中切换检查：`scripts/check-source-switching.py` 会录制 11 秒并检查声音开关、底层回调、输出信号和最后一路保护；支持 `--sources` 与 `--microphone-device`。AppKit 退出检查可用 `scripts/check-system-audio.py --panel --sources both --seconds 30 --interrupt-after 5 --quit-via-appkit`。这两项已通过实际采集验证；测试时 Mac 需解锁并亮屏。
 
 只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
 

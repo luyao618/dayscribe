@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-主面板已使用 AudioRecorder，连接双路选择、独立电平、最近保存文件和异步退出；旧 MicrophoneRecorder 已移除。运行中仅更新 captureMicrophone=false 实测仍收到真实麦克风数据，因此改为独立启停两个 SCStream，共用 MixedAudioOutput、AudioPCMConverter、AudioTimelineMixer 和一个 AudioSampleWriter。27 个组件用例及原生构建通过，最终独立启停和 AppKit 退出测试因 Mac 锁屏待继续；不得把之前单流验证冒充新方案已通过。design/ 仍是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
+主面板已使用 AudioRecorder，连接双路选择、独立电平、最近保存文件和异步退出；旧 MicrophoneRecorder 已移除。运行中仅更新 captureMicrophone=false 实测仍收到真实麦克风数据，因此改为独立启停两个 SCStream，共用 MixedAudioOutput、AudioPCMConverter、AudioTimelineMixer 和一个 AudioSampleWriter。27 个组件用例及原生构建通过；独立启停已通过双路、单路初始状态及 USB16kHz 实测，AppKit 退出保存通过。SIGTERM 使用 RunLoop.perform 进入 AppKit，避免主队列嵌套退出死锁。原生桌面点击验收仍待完成。design/ 仍是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
 
 ## 约定
 

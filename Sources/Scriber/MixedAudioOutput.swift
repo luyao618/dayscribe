@@ -102,7 +102,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         }
     }
 
-    /// Called after SCStream applies its source flags, behind queued callbacks.
+    /// Called after disabled streams stop, behind queued callbacks.
     /// Flush disabled converters now so re-enabling starts a fresh timed segment.
     func completeSources(_ selected: Set<AudioSource>) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in

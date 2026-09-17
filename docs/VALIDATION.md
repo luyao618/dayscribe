@@ -90,16 +90,30 @@ AAC container durations currently exceed the submitted PCM timelines by about 44
 
 ![Native audio diagnostic, offscreen idle render](screenshots/native-audio-check.png)
 
-## Live panel integration — implementation pending final native checks
+## Live panel integration — 2026-09-17
 
-- The approved panel now uses AudioRecorder for both source toggles, measured independent levels, microphone-device help, elapsed time, filename, last saved file and asynchronous stop. Default-both source selection is persisted; disabling every source is rejected with a visible message. The old separate AVAudioRecorder path is removed, including its synchronous-quit assumption.
-- Initial live tests (artifacts/source-switch-check-u5efy63s and source-switch-check-p_thn9wb) passed recorded-signal gating and last-source rejection but **failed** the native callback-stop check. Updating captureMicrophone=false still delivered nonzero microphone PCM, including with a fresh SCStreamConfiguration and explicit device UID. These are not successful independent-stop results.
-- The implementation now owns separate system/microphone SCStreams sharing one host-clock mixer/encoder. Disabled source streams are explicitly stopped; converter tails are drained and retired before later restart. Final real validation of this replacement is **pending**: the subsequent attempt (artifacts/source-switch-check-zpgw307m) correctly failed before recording because the Mac was locked and all displays asleep. Public session/display inspection confirmed that state; no unlock or permission bypass was attempted.
-- Twenty-seven component cases pass (17 test functions), including persisted nonempty selection and a 16kHz source stop/restart with preserved epoch and flushed resampling tail. Debug build/signature, script syntax and the native idle render pass. These checks do not prove the replacement streams' live lifecycle or native UI clicks.
-- Remaining gates for this PR: scripts/check-source-switching.py with both/single initial sources and USB input; normal microphone regression; scripts/check-system-audio.py --panel --sources both --seconds 30 --interrupt-after 5 --quit-via-appkit. Keep the PR as draft until the actual source and termination checks pass. Native desktop click/keyboard acceptance also remains pending.
+- The approved panel now uses AudioRecorder for both source toggles, measured independent levels, microphone-device help, elapsed time, filename, last saved file and asynchronous stop. Default-both source selection is persisted; disabling every source is rejected with a visible message. The old separate AVAudioRecorder path is removed.
+- Initial shared-stream trials (artifacts/source-switch-check-u5efy63s and source-switch-check-p_thn9wb) passed recorded-signal gating but **failed** callback-stop checks: captureMicrophone=false continued delivering nonzero microphone PCM. The replacement owns separate system/microphone SCStreams sharing one host-clock mixer/encoder. Each disabled stream is explicitly stopped and its converter tail drained before restart. A locked-session trial (source-switch-check-zpgw307m) correctly failed with zero frames; it is not counted as capture evidence.
+- On the unlocked Mac, all four independent-stream trials below passed: system-only → microphone-only → both transitions, rejection of an empty selection, stopped raw callbacks for disabled sources, resumed callbacks for active sources, suppression of the 880Hz system fixture while system capture was off, exactly one fully decoded M4A and process exit. Default playback output was Jabra USB; no system/Teams device settings were changed.
+
+| Initial sources / microphone | PCM timeline / AAC container | Local evidence |
+|---|---|---|
+| Both / built-in 48kHz | 11.537063s / 11.584000s | artifacts/source-switch-check-bx4wgi4y |
+| System, add built-in microphone | 11.065292s / 11.114667s | artifacts/source-switch-check-cn1up1nj |
+| Built-in microphone, add system | 11.019375s / 11.072000s | artifacts/source-switch-check-nmx5p8cy |
+| Both / Jabra USB 16kHz | 11.155438s / 11.200000s | artifacts/source-switch-check-kwpuia6x |
+
+- These are requested 11s captures. The media timeline includes source startup before both streams have finished starting; the diagnostic wall timer begins when the recorder reports recording. Short capture duration can therefore exceed the requested wait. PCM and AAC durations remain separately recorded.
+- The first AppKit quit trial (artifacts/system-audio-check-zx77nz2b) **failed**: calling terminate from a main-dispatch block entered AppKit's nested termination loop while holding the queue needed by the asynchronous stop task. A process sample was retained; the hung diagnostic was force-stopped for repair. SIGTERM now enters AppKit from RunLoop.main.perform, outside a dispatch drain or Swift task.
+- Corrected AppKit terminateLater/reply validation passed (artifacts/system-audio-check-0hk8jtbp): a 30s request interrupted at about5s, PCM5.350375s / AAC container5.397333s, one fully decoded M4A with both ordered fixture tones, interrupted status and actual process exit. This is not a30s capture.
+- Unified microphone-command regressions also pass: normal5s request →5.120s AAC (artifacts/mic-check-amyc3_k7); 30s request interrupted at about2s →2.112s AAC (artifacts/mic-check-ap2nftfg). Both fully decode and exit; ambient input only, not new acoustic calibration evidence.
+- Twenty-seven component cases pass (17 test functions), including persisted nonempty selection and a16kHz source stop/restart with preserved epoch and flushed resampling tail. The updated app build and Apple Development signature verification pass without compiler warnings.
+- The recording/saved screenshots below render our own native panel from actual capture state, not fixture UI state. They preserve the approved layout and show actual measured levels and saved-file data. CUA getApp still times out (-10005); desktop clicks, keyboard navigation and actual popover resizing remain unverified.
 
 ![Connected native panel, offscreen idle render](screenshots/native-live-panel-idle.png)
+![Native panel rendered from actual recording state](screenshots/native-live-panel-recording.png)
+![Native panel rendered after actual file save](screenshots/native-live-panel-saved.png)
 
 ## Remaining acceptance
 
-Live source switching and main-panel mixed capture integration, screen selection/video outputs, Bluetooth, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit async mixed-audio stop is verified; final OS-driven quit/sleep and video shutdown still need dedicated checks.
+Screen selection/video outputs, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven mixed-audio quit are verified; sleep/lock handling and video shutdown still need dedicated checks.

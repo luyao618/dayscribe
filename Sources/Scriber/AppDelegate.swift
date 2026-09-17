@@ -45,11 +45,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &subscriptions)
         signal(SIGTERM, SIG_IGN)
         let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-        // Enter AppKit's quit path from the native main queue, not a Swift task.
+        // AppKit runs a nested loop for terminateLater. Enter from a run-loop
+        // callback, so neither a Swift task nor a dispatch drain holds the main queue.
         signalSource.setEventHandler { [weak self] in
-            DispatchQueue.main.async {
-                if CommandLine.arguments.contains("--quit-via-appkit") { NSApp.terminate(nil) }
-                else { self?.requestQuit() }
+            RunLoop.main.perform { [weak self] in
+                MainActor.assumeIsolated {
+                    if CommandLine.arguments.contains("--quit-via-appkit") { NSApp.terminate(nil) }
+                    else { self?.requestQuit() }
+                }
             }
         }
         signalSource.resume()
