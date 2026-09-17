@@ -141,6 +141,11 @@ actor RecordingHistoryStore {
         return await Task.detached(priority: .utility) { references.map(Self.readEntry) }.value
     }
 
+    func entry(_ id: UUID) async throws -> RecordingHistoryEntry? {
+        guard let reference = try readIndex().recordings.first(where: { $0.id == id }) else { return nil }
+        return await Task.detached(priority: .utility) { Self.readEntry(reference) }.value
+    }
+
     private func readIndex() throws -> Index {
         guard indexURL.isFileURL else { throw RecordingHistoryError.invalidIndex }
         let data: Data

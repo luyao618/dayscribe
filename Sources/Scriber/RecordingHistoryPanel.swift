@@ -5,8 +5,9 @@ struct RecordingHistoryPanel: View {
     @ObservedObject var recorder: AudioRecorder
     let onBack: () -> Void
     let onRefresh: () -> Void
+    let onOpen: (UUID) -> Void
     let onReveal: (UUID) -> Void
-    @State private var query = ""
+    @Binding var query: String
 
     private var filtered: [RecordingHistoryEntry] {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,7 +42,7 @@ struct RecordingHistoryPanel: View {
             ScrollView {
                 LazyVStack(spacing: 5) {
                     ForEach(filtered) { entry in
-                        RecordingHistoryRow(entry: entry, recorder: recorder) { onReveal(entry.id) }
+                        RecordingHistoryRow(entry: entry, recorder: recorder, onOpen: { onOpen(entry.id) }) { onReveal(entry.id) }
                         Rectangle().fill(PanelPalette.line).frame(height: 1)
                     }
                     if filtered.isEmpty, !history.isLoading, history.errorMessage == nil {
@@ -60,6 +61,7 @@ struct RecordingHistoryPanel: View {
 struct RecordingHistoryRow: View {
     let entry: RecordingHistoryEntry
     @ObservedObject var recorder: AudioRecorder
+    var onOpen: (() -> Void)? = nil
     let onReveal: () -> Void
     private var live: Bool { recorder.sessionID == entry.id && recorder.state.active }
     private var video: Bool { entry.manifest?.paths["mp4"] != nil }
@@ -82,6 +84,21 @@ struct RecordingHistoryRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            Button { onOpen?() } label: { content }
+                .buttonStyle(.plain).disabled(onOpen == nil)
+                .accessibilityLabel("查看录制：\(title)")
+                .accessibilityValue("\(status)，\(live ? recorder.elapsedText : RecordingHistoryModel.durationText(entry.duration))")
+            Button(action: onReveal) { Image(systemName: "folder") }
+                .buttonStyle(PanelIconButtonStyle()).disabled(!canReveal)
+                .accessibilityLabel("定位录制：\(title)")
+                .help("在 Finder 中显示这次录制的文件")
+        }
+        .frame(minHeight: 53)
+        .help(entry.issue ?? status)
+    }
+
+    private var content: some View {
+        HStack(spacing: 10) {
             let tint = video ? PanelPalette.iris : PanelPalette.jade
             Image(systemName: entry.manifest == nil ? "doc.questionmark" : (video ? "video" : "waveform"))
                 .font(.system(size: 16)).foregroundStyle(tint.opacity(0.8))
@@ -95,12 +112,8 @@ struct RecordingHistoryRow: View {
             Spacer(minLength: 2)
             Text(live ? recorder.elapsedText : RecordingHistoryModel.durationText(entry.duration))
                 .font(.system(size: 10, design: .monospaced)).foregroundStyle(PanelPalette.slate)
-            Button(action: onReveal) { Image(systemName: "folder") }
-                .buttonStyle(PanelIconButtonStyle()).disabled(!canReveal)
-                .accessibilityLabel("定位录制：\(title)")
-                .help("在 Finder 中显示这次录制的文件")
+            Image(systemName: "chevron.right").font(.system(size: 8)).foregroundStyle(PanelPalette.muted)
         }
-        .frame(minHeight: 53)
-        .help(entry.issue ?? status)
+        .contentShape(Rectangle())
     }
 }
