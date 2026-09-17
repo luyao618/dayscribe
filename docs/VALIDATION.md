@@ -471,6 +471,14 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Actual captured geometric synchronization fixture](screenshots/native-vector-sync-calibration.png)
 
+## Bounded recovery-prefix copy memory — 2026-09-18
+
+- Investigation of the recovered91m file identified FileHandle buffers retained by the detached Swift task's autorelease lifetime. A generated256MiB box-copy fixture peaked at276086784 bytes RSS even though each read was limited to1MiB. Explicit per-chunk autorelease pools now release those Foundation objects after each completed write; cancellation, original identity checks and no-overwrite behavior remain intact.
+- The same generated input copied with peak8830976 bytes RSS, and original/unpooled/pooled copies have identical SHA256. The production fix then copied the actual **2746554537-byte**91m video with peak **7684096 bytes (~7.3MiB)**; source and output exactly match the previously recorded original hash. These are **copy-stage** measurements, not an8MiB claim for native exporting/decoding or the full app. Evidence: `artifacts/prefix-memory-t4job4ip`, `prefix-memory-fixed-s3y829d_/verified.json`.
+- A >3MiB component case verifies exact bytes across multiple chunks and unchanged source. All **115 component cases (101 functions)**, Release build and self-review passed (`recovery-copy-memory-tests.log`, `recovery-copy-memory-build.log`).
+- Reproduce memory measurement on an inactive owned file with `xcrun swiftc -O -swift-version 6 -parse-as-library Sources/Scriber/MovieFilePrefix.swift tools/InspectPrefixCopyMemory.swift -o artifacts/InspectPrefixCopyMemory`, then pass absolute source and new destination paths. The tool reports actual process peak RSS and copied bytes; it does not certify media decoding.
+- The second complete two-hour recording is running with the repaired geometric fixture and interrupted-video publication fix. Original eight-hour audio continues independently. Neither ongoing test is marked passed by these memory checks.
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.
