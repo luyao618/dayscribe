@@ -5,6 +5,14 @@ import Foundation
 /// retained after saving; it describes this session only, never unrelated media.
 struct RecordingSessionFiles: Sendable {
     struct Manifest: Codable, Sendable {
+        struct Recovery: Codable, Sendable {
+            let transactionID: UUID
+            let completedAt: Date?
+            let originalPaths: [String: String]
+            let durations: [String: Double]
+            let issues: [String: String]
+            var originalCaptureError: String? = nil
+        }
         let id: UUID
         let startedAt: Date
         let title: String
@@ -16,6 +24,7 @@ struct RecordingSessionFiles: Sendable {
         var duration: Double? = nil
         var captureError: String? = nil
         var fileIdentities: [String: RecordingFileIdentity]? = nil
+        var recovery: Recovery? = nil
 
         static func read(from url: URL) throws -> Self {
             let handle = try FileHandle(forReadingFrom: url)
@@ -182,6 +191,7 @@ struct RecordingSessionFiles: Sendable {
             var prepared = makeManifest(title: resolvedTitle, files: locations, closed: closed, published: published,
                                         error: captureError, duration: previous.duration, captureError: captureError)
             prepared.fileIdentities = (prepared.fileIdentities ?? [:]).merging(previous.fileIdentities ?? [:]) { _, recorded in recorded }
+            prepared.recovery = previous.recovery
             try save(prepared, manifestURL)
             let result = RecordingFileSet(urls: locations.urls.filter { published.contains($0.key) })
                 .relocate(to: directory, title: title)
@@ -192,6 +202,7 @@ struct RecordingSessionFiles: Sendable {
                                        error: Self.combined(captureError, message), duration: previous.duration,
                                        captureError: captureError)
             updated.fileIdentities = prepared.fileIdentities
+            updated.recovery = previous.recovery
             try save(updated, manifestURL)
         } catch {
             message = [message, "改名记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
@@ -221,7 +232,9 @@ struct RecordingSessionFiles: Sendable {
     static func writeManifest(_ manifest: Manifest, _ url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: url, options: .atomic)
+        let data = try encoder.encode(manifest)
+        guard data.count <= 64 * 1024 else { throw POSIXError(.EFBIG) }
+        try data.write(to: url, options: .atomic)
     }
 
     private static func combined(_ first: String?, _ second: String?) -> String? {
