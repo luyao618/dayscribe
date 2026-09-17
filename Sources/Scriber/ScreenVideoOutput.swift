@@ -4,6 +4,9 @@ struct ScreenVideoMetrics: Sendable {
     var receivedFrames = 0
     var firstHostTime: Double?
     var lastHostTime: Double?
+    var idleFrames = 0
+    var lastIdleHostTime: Double?
+    var repeatedFrames = 0
     var error: String?
 }
 
@@ -17,6 +20,7 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private var metrics = ScreenVideoMetrics()
     private var closed = false
     private var stopping = false
+    private var lastCallbackReceipt: Double?
 
     init(writer: VideoSampleWriter, epoch: CMTime) {
         self.writer = writer
@@ -26,6 +30,10 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
                 of type: SCStreamOutputType) {
         guard type == .screen else { return }
+        append(sampleBuffer)
+    }
+
+    func append(_ sampleBuffer: CMSampleBuffer) {
         dispatchPrecondition(condition: .onQueue(writer.queue))
         guard !closed, metrics.error == nil, sampleBuffer.isValid,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
@@ -34,6 +42,7 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
               let status = SCFrameStatus(rawValue: raw) else { return }
         switch status {
         case .complete:
+            lastCallbackReceipt = CMClockGetTime(CMClockGetHostTimeClock()).seconds
             guard let image = sampleBuffer.imageBuffer else { metrics.error = "录屏没有收到有效画面。"; return }
             let time = sampleBuffer.presentationTimeStamp
             do {
@@ -44,7 +53,26 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                 metrics.firstHostTime = metrics.firstHostTime ?? time.seconds
                 metrics.lastHostTime = time.seconds
             } catch { metrics.error = error.localizedDescription }
-        case .idle: break // A static screen remains a valid last picture.
+        case .idle:
+            lastCallbackReceipt = CMClockGetTime(CMClockGetHostTimeClock()).seconds
+            metrics.idleFrames += 1
+            let time = sampleBuffer.presentationTimeStamp
+            metrics.lastIdleHostTime = time.isNumeric && time.seconds.isFinite ? time.seconds : nil
+            guard !stopping, let image = lastImage, let lastTime else { return }
+            let relative = (time - epoch).seconds
+            guard relative.isFinite, relative >= 0, relative < Double(Int64.max) else {
+                metrics.error = "静止画面没有有效的时间信息。"; return
+            }
+            // SCK confirms the scene is unchanged. Repeat the captured surface
+            // at most once per second so both movie tracks can checkpoint.
+            let checkpointTime = CMTime(value: Int64(relative.rounded(.down)), timescale: 1)
+            if checkpointTime > lastTime {
+                do {
+                    try writer.appendVideo(image, at: checkpointTime)
+                    self.lastTime = checkpointTime
+                    metrics.repeatedFrames += 1
+                } catch { metrics.error = error.localizedDescription }
+            }
         case .blank, .suspended, .stopped:
             if !stopping { metrics.error = "屏幕采集已中断，正在保存已有内容。" }
         case .started: break
@@ -65,6 +93,10 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                    (CMClockGetTime(CMClockGetHostTimeClock()) - self.epoch).seconds > 2 {
                     self.metrics.error = self.metrics.error ?? "屏幕采集未返回画面，正在停止。"
                 }
+                if !self.closed, !self.stopping, let last = self.lastCallbackReceipt,
+                   CMClockGetTime(CMClockGetHostTimeClock()).seconds - last > 2 {
+                    self.metrics.error = self.metrics.error ?? "屏幕采集停止返回状态，正在保存已有内容。"
+                }
                 continuation.resume(returning: self.metrics)
             }
         }
@@ -83,7 +115,10 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                     guard !self.closed else { throw VideoWriteError.finished }
                     if self.metrics.error == nil, let image = self.lastImage, let last = self.lastTime {
                         let tailStart = end - CMTime(value: 1, timescale: 30)
-                        if tailStart > last { try self.writer.appendVideo(image, at: tailStart) }
+                        if tailStart > last {
+                            try self.writer.appendVideo(image, at: tailStart)
+                            self.metrics.repeatedFrames += 1
+                        }
                     }
                     continuation.resume()
                 } catch { self.metrics.error = error.localizedDescription; continuation.resume() }
