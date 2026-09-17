@@ -1,0 +1,167 @@
+import Darwin
+import Foundation
+
+struct RecordingHistoryReference: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    let startedAt: Date
+    let initialTitle: String
+    let manifestURL: URL
+
+    init(session: RecordingSessionFiles, title: String) {
+        id = session.id
+        startedAt = session.startedAt
+        initialTitle = title
+        manifestURL = session.manifestURL
+    }
+}
+
+struct RecordingHistoryEntry: Identifiable, Sendable {
+    // Filesystem/encoder-close status, not a fresh media-decoder certification.
+    enum FileState: Equatable, Sendable { case available, missing, unfinished, unavailable }
+    let reference: RecordingHistoryReference
+    let manifest: RecordingSessionFiles.Manifest?
+    let urls: [RecordingFileKind: URL]
+    let fileStates: [RecordingFileKind: FileState]
+    let issue: String?
+    var id: UUID { reference.id }
+    var title: String { manifest?.title ?? reference.initialTitle }
+    var duration: Double? { manifest?.duration }
+}
+
+enum RecordingHistoryError: LocalizedError {
+    case invalidIndex, invalidManifest, oversized
+    var errorDescription: String? {
+        switch self {
+        case .invalidIndex: "历史索引无法读取，原有记录已保留。"
+        case .invalidManifest: "这条录制记录无法读取。"
+        case .oversized: "录制记录文件过大，原文件已保留。"
+        }
+    }
+}
+
+/// The registry contains identities and stable manifest URLs, never a second
+/// copy of media paths. Read current paths from the manifest after every rename.
+actor RecordingHistoryStore {
+    static let standard = RecordingHistoryStore(indexURL: FileManager.default.homeDirectoryForCurrentUser
+        .appending(path: "Library/Application Support/Scriber/history.json"))
+    nonisolated let indexURL: URL
+    private struct Index: Codable {
+        var version = 1
+        var recordings: [RecordingHistoryReference]
+    }
+
+    init(indexURL: URL) { self.indexURL = indexURL }
+
+    /// Complete this before opening encoders. A failed index write must not let
+    /// capture appear to start with no durable reference to its session.
+    func register(_ reference: RecordingHistoryReference) throws {
+        guard indexURL.isFileURL else { throw RecordingHistoryError.invalidIndex }
+        try Self.validate(reference)
+        let directory = indexURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let lockURL = directory.appendingPathComponent("history.lock")
+        let descriptor = lockURL.withUnsafeFileSystemRepresentation { open($0!, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0o600) }
+        guard descriptor >= 0 else { throw Self.posixError() }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { throw Self.posixError() }
+        defer { flock(descriptor, LOCK_UN) }
+        // Read again under the file lock so separate app/store instances cannot
+        // replace each other's registrations with a stale in-memory snapshot.
+        var index = try readIndex()
+        if let existing = index.recordings.first(where: { $0.id == reference.id }) {
+            guard existing.manifestURL == reference.manifestURL, existing.startedAt == reference.startedAt else {
+                throw RecordingHistoryError.invalidIndex
+            }
+            return
+        }
+        index.recordings.append(reference)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(index)
+        guard data.count <= 8 * 1024 * 1024 else { throw RecordingHistoryError.oversized }
+        try data.write(to: indexURL, options: .atomic)
+    }
+
+    func load() async throws -> [RecordingHistoryEntry] {
+        let references = try readIndex().recordings.sorted {
+            $0.startedAt == $1.startedAt ? $0.id.uuidString < $1.id.uuidString : $0.startedAt > $1.startedAt
+        }
+        // A slow media volume must not hold the registry actor while a new
+        // recording is trying to register its local reference.
+        return await Task.detached(priority: .utility) { references.map(Self.readEntry) }.value
+    }
+
+    private func readIndex() throws -> Index {
+        guard indexURL.isFileURL else { throw RecordingHistoryError.invalidIndex }
+        let data: Data
+        do { data = try Self.read(indexURL, limit: 8 * 1024 * 1024) }
+        catch let error as POSIXError where error.code == .ENOENT { return Index(recordings: []) }
+        let index: Index
+        do { index = try JSONDecoder().decode(Index.self, from: data) }
+        catch { throw RecordingHistoryError.invalidIndex }
+        guard index.version == 1, Set(index.recordings.map(\.id)).count == index.recordings.count,
+              Set(index.recordings.map(\.manifestURL)).count == index.recordings.count else {
+            throw RecordingHistoryError.invalidIndex
+        }
+        try index.recordings.forEach(Self.validate)
+        return index
+    }
+
+    private static func validate(_ reference: RecordingHistoryReference) throws {
+        let url = reference.manifestURL
+        guard url.isFileURL, url.lastPathComponent == "session.json",
+              url.deletingLastPathComponent().lastPathComponent == ".scriber-\(reference.id.uuidString)",
+              reference.startedAt.timeIntervalSinceReferenceDate.isFinite else { throw RecordingHistoryError.invalidIndex }
+    }
+
+    private static func readEntry(_ reference: RecordingHistoryReference) -> RecordingHistoryEntry {
+        do {
+            let manifest = try RecordingSessionFiles.Manifest.read(from: reference.manifestURL)
+            let staging = reference.manifestURL.deletingLastPathComponent().standardizedFileURL
+            let destination = staging.deletingLastPathComponent()
+            let kinds = Set(RecordingFileKind.allCases.map(\.rawValue))
+            guard manifest.id == reference.id, manifest.startedAt == reference.startedAt,
+                  manifest.version == nil || manifest.version == 1,
+                  !manifest.paths.isEmpty, Set(manifest.paths.keys).isSubset(of: kinds),
+                  Set(manifest.closed).isSubset(of: Set(manifest.paths.keys)),
+                  Set(manifest.published).isSubset(of: Set(manifest.closed)),
+                  manifest.duration.map({ $0.isFinite && $0 >= 0 }) ?? true else { throw RecordingHistoryError.invalidManifest }
+            var urls: [RecordingFileKind: URL] = [:]
+            var states: [RecordingFileKind: RecordingHistoryEntry.FileState] = [:]
+            for (extensionName, path) in manifest.paths {
+                guard path.hasPrefix("/"), !path.contains("\0"), let kind = RecordingFileKind(rawValue: extensionName) else {
+                    throw RecordingHistoryError.invalidManifest
+                }
+                let url = URL(fileURLWithPath: path).standardizedFileURL
+                guard url.pathExtension == extensionName,
+                      [staging, destination].contains(url.deletingLastPathComponent()) else { throw RecordingHistoryError.invalidManifest }
+                urls[kind] = url
+                var info = stat()
+                if url.withUnsafeFileSystemRepresentation({ lstat($0!, &info) }) != 0 {
+                    states[kind] = errno == ENOENT ? .missing : .unavailable
+                } else if info.st_mode & S_IFMT != S_IFREG {
+                    states[kind] = .unavailable
+                } else {
+                    states[kind] = manifest.closed.contains(extensionName) ? .available : .unfinished
+                }
+            }
+            return .init(reference: reference, manifest: manifest, urls: urls, fileStates: states, issue: manifest.error)
+        } catch {
+            return .init(reference: reference, manifest: nil, urls: [:], fileStates: [:], issue: error.localizedDescription)
+        }
+    }
+
+    private static func read(_ url: URL, limit: Int) throws -> Data {
+        let descriptor = url.withUnsafeFileSystemRepresentation { open($0!, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK) }
+        guard descriptor >= 0 else { throw posixError() }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? handle.close() }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { throw RecordingHistoryError.invalidIndex }
+        let data = try handle.read(upToCount: limit + 1) ?? Data()
+        guard data.count <= limit else { throw RecordingHistoryError.oversized }
+        return data
+    }
+
+    private static func posixError() -> POSIXError { POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+}

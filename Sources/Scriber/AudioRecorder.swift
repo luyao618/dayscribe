@@ -55,9 +55,12 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var microphoneDeviceID: String?
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
+    private let historyStore: RecordingHistoryStore?
+    var sessionID: UUID? { sessionFiles?.id }
 
-    init(defaults: UserDefaults? = nil) {
+    init(defaults: UserDefaults? = nil, historyStore: RecordingHistoryStore? = nil) {
         self.defaults = defaults
+        self.historyStore = historyStore
         super.init()
         destinationDirectories = Dictionary(uniqueKeysWithValues: RecordingMode.allCases.map {
             ($0, RecordingDestination.restored(from: defaults, for: $0))
@@ -288,6 +291,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }.value
             guard generation == token, state == .authorizing else { return }
             sessionFiles = session
+            if let historyStore {
+                try await historyStore.register(.init(session: session, title: desiredTitle))
+                guard generation == token, state == .authorizing else { return }
+            }
             recordingDirectory = session.directory
             let url = session.files.urls[.audio]!
             let sink = try AudioSampleWriter(url: url)
@@ -418,7 +425,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             var closed = Set<RecordingFileKind>()
             if audioSaved { closed.insert(.audio) }
             if videoSaved { closed.insert(.video) }
-            let finished = await Task.detached { sessionFiles.finalize(title: title, closed: closed) }.value
+            let duration = summary?.duration
+            let captureError = errorMessage
+            let finished = await Task.detached {
+                sessionFiles.finalize(title: title, closed: closed, duration: duration, captureError: captureError)
+            }.value
             applyFileFinalization(finished)
             if let message = finished.errorMessage {
                 errorMessage = [errorMessage, message].compactMap { $0 }.joined(separator: "\n")

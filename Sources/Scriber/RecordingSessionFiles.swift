@@ -12,6 +12,17 @@ struct RecordingSessionFiles: Sendable {
         let closed: [String]
         let published: [String]
         let error: String?
+        var version: Int? = 1
+        var duration: Double? = nil
+        var captureError: String? = nil
+
+        static func read(from url: URL) throws -> Self {
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            let data = try handle.read(upToCount: 64 * 1024 + 1) ?? Data()
+            guard data.count <= 64 * 1024 else { throw CocoaError(.fileReadTooLarge) }
+            return try JSONDecoder().decode(Self.self, from: data)
+        }
     }
 
     struct Finalization: Sendable {
@@ -49,14 +60,16 @@ struct RecordingSessionFiles: Sendable {
         return session
     }
 
-    func finalize(title: String, closed: Set<RecordingFileKind>) -> Finalization {
+    func finalize(title: String, closed: Set<RecordingFileKind>, duration: Double? = nil,
+                  captureError: String? = nil) -> Finalization {
         var locations = files.urls
         var published = Set<RecordingFileKind>()
         var resolvedTitle = title
         var message: String?
         do {
             // Never move an open, failed or unverified encoder output as success.
-            try checkpoint(title: title, files: files, closed: closed, published: [], error: nil)
+            try checkpoint(title: title, files: files, closed: closed, published: [], error: captureError,
+                           duration: duration, captureError: captureError)
             let ready = RecordingFileSet(urls: files.urls.filter { closed.contains($0.key) })
             if !ready.urls.isEmpty {
                 let result = ready.relocate(to: directory, title: title)
@@ -72,7 +85,8 @@ struct RecordingSessionFiles: Sendable {
                     .compactMap { $0 }.joined(separator: "\n")
             }
             try checkpoint(title: resolvedTitle, files: .init(urls: locations), closed: closed,
-                           published: published, error: message)
+                           published: published, error: Self.combined(captureError, message),
+                           duration: duration, captureError: captureError)
         } catch {
             message = [message, "录制记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
         }
@@ -89,12 +103,20 @@ struct RecordingSessionFiles: Sendable {
         var message: String?
         do {
             _ = try RecordingFilename.validated(title)
-            try checkpoint(title: resolvedTitle, files: current, closed: kinds, published: kinds, error: nil)
+            let previous = try Manifest.read(from: manifestURL)
+            guard previous.id == id, previous.startedAt == startedAt, previous.version == nil || previous.version == 1,
+                  Set(previous.paths.keys) == Set(current.urls.keys.map(\.rawValue)) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            let captureError = previous.captureError ?? (previous.version == nil ? previous.error : nil)
+            try checkpoint(title: resolvedTitle, files: current, closed: kinds, published: kinds,
+                           error: captureError, duration: previous.duration, captureError: captureError)
             let result = current.relocate(to: directory, title: title)
             locations = result.files
             resolvedTitle = result.title ?? (locations.urls[.video] ?? locations.urls[.audio])?.deletingPathExtension().lastPathComponent ?? resolvedTitle
             message = result.errorMessage
-            try checkpoint(title: resolvedTitle, files: locations, closed: kinds, published: kinds, error: message)
+            try checkpoint(title: resolvedTitle, files: locations, closed: kinds, published: kinds,
+                           error: Self.combined(captureError, message), duration: previous.duration, captureError: captureError)
         } catch {
             message = [message, "改名记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
         }
@@ -102,12 +124,19 @@ struct RecordingSessionFiles: Sendable {
     }
 
     private func checkpoint(title: String, files: RecordingFileSet, closed: Set<RecordingFileKind>,
-                            published: Set<RecordingFileKind>, error: String?) throws {
+                            published: Set<RecordingFileKind>, error: String?, duration: Double? = nil,
+                            captureError: String? = nil) throws {
         let manifest = Manifest(id: id, startedAt: startedAt, title: title,
                                 paths: Dictionary(uniqueKeysWithValues: files.urls.map { ($0.key.rawValue, $0.value.path) }),
-                                closed: closed.map(\.rawValue).sorted(), published: published.map(\.rawValue).sorted(), error: error)
+                                closed: closed.map(\.rawValue).sorted(), published: published.map(\.rawValue).sorted(),
+                                error: error, duration: duration, captureError: captureError)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(manifest).write(to: manifestURL, options: .atomic)
+    }
+
+    private static func combined(_ first: String?, _ second: String?) -> String? {
+        let messages = [first, second].compactMap { $0 }
+        return messages.isEmpty ? nil : messages.joined(separator: "\n")
     }
 }

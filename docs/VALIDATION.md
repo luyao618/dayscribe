@@ -255,6 +255,22 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 ![Actual recording panel with a directory change applying next time](screenshots/native-destination-current.png)
 ![Actual destination settings with original folders restored](screenshots/native-destination-settings.png)
 
+## Durable history registry — 2026-09-17
+
+- Normal-app recordings now register their stable session ID/date/manifest URL in `~/Library/Application Support/Scriber/history.json` **before** opening encoders or starting streams. The registry holds no duplicate media paths. Each manifest includes optional schema version, presentation duration and capture error; rename preserves these and the registry reads its current name/paths. Older manifests without these fields remain readable, with unknown duration represented explicitly.
+- Registration reads the existing index under a cross-instance file lock and atomically replaces it after validation. Only an absent file starts an empty index; corrupt/future/duplicate/linked/oversized indexes are refused and preserved. Missing/unreadable individual manifests and missing/unfinished/non-regular media are reported per entry without dropping other entries. Manifest paths are constrained to that session's staging or destination directory. File availability is based on the recorded encoder-close state and filesystem, not a fresh decoder certification.
+- Registry registration failure refuses capture before media starts. Manifest reads run outside the registry actor so a slow recording folder does not hold up local index registration. Index and manifest reads are bounded. A failed metadata read blocks rename before moving files; a later successful rename retry clears its file-operation error while retaining any original capture error and duration.
+- Nine new component cases cover store/process-style recreation and current renamed metadata; idempotent rediscovery; concurrent separate-store registration; corrupt/future/duplicate indexes; missing/unfinished entries; unrelated media paths; linked/oversized indexes; failed writes (including a valid existing index in a read-only fixture directory); legacy manifests and corrupt-metadata rename refusal. All **59 component cases (47 functions)**, native build/signature, independent reader build and self-review pass (`artifacts/history-store-tests.log`, `history-store-build.log`). Initial tests exposed FileHandle's missing-file Cocoa code4 versus260; index reads now use explicit POSIX ENOENT handling and refuse links/non-regular files.
+
+| Actual normal-app recording | Duration / audio frames | Evidence under artifacts/gui-validation |
+|---|---|---|
+| Audio registered before writing, then saved | 4.011333333s /192544 | history-audio-result.json |
+| Video from a fresh app process, preserving the first reference | 4.229645833s /203023 | history-video-result.json |
+
+- The native Start/Stop flow used real capture. A separate `ReadRecordingHistory` process observed the active audio as unfinished with unknown duration, then observed the finalized name, exact presentation duration, paths and available files. After app restart, the video created one additional grouped entry, preserving the audio entry. After app exit, fresh reader processes returned both records. All media fully decodes; MP4 and M4A decode to203023 identical audio samples. Evidence: history-registration-result.json and artifacts/history-registration-gui.log. The app exited and raw media remains local.
+- Rebuild the read-only reader with `xcrun swiftc -parse-as-library Sources/Scriber/RecordingFileSet.swift Sources/Scriber/RecordingSessionFiles.swift Sources/Scriber/RecordingHistoryStore.swift tools/ReadRecordingHistory.swift -o artifacts/ReadRecordingHistory`, then pass an absolute index path.
+- This PR supplies persistent data and recorder integration. History list/discovery/playback UI and crash recovery remain separate; no rendered history list or successful recovery is claimed. Existing unindexed beta recordings are left intact for the next discovery increment; unrelated media is not imported.
+
 ## Remaining acceptance
 
-Persistent history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+History discovery/list/playback UI, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
