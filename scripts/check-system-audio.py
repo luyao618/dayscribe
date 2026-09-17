@@ -19,6 +19,9 @@ parser.add_argument("--seconds", type=float, default=8)
 parser.add_argument("--interrupt-after", type=float)
 parser.add_argument("--sources", choices=("system", "microphone", "both"), default="system")
 parser.add_argument("--microphone-device")
+parser.add_argument("--capture-display")
+parser.add_argument("--capture-window")
+parser.add_argument("--capture-region")
 parser.add_argument("--playback-device", help="Route the fixture to this device UID without changing system defaults")
 parser.add_argument("--stimulus-amplitude", type=int, default=1000, help="Test PCM peak, 1–4096 out of 32767")
 parser.add_argument("--expected-microphone-rate", type=int)
@@ -63,6 +66,9 @@ if args.quit_via_appkit:
     command += ["--quit-via-appkit"]
 if args.microphone_device:
     command += ["--microphone-device", args.microphone_device]
+for flag in ("capture_display", "capture_window", "capture_region"):
+    if getattr(args, flag) is not None:
+        command += ["--" + flag.replace("_", "-"), getattr(args, flag)]
 subprocess.run(command, check=True)
 
 def read_state():
@@ -165,12 +171,15 @@ if args.video:
     video_path = Path(result["videoPath"])
     assert video_path.with_suffix(".m4a") == recording
     video_probe = json.loads(subprocess.check_output([
-        "ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_name,codec_type,width,height,start_time,duration",
+        "ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_name,codec_type,width,height,start_time,duration,color_space,color_transfer,color_primaries",
         "-of", "json", str(video_path)], text=True))
     (root / "video-ffprobe.json").write_text(json.dumps(video_probe, indent=2))
     assert {x["codec_name"] for x in video_probe["streams"]} == {"h264", "aac"}, video_probe
     picture = next(x for x in video_probe["streams"] if x["codec_type"] == "video")
-    assert picture["width"] >= 640 and picture["height"] >= 480, picture
+    assert (picture.get("color_space"), picture.get("color_transfer"), picture.get("color_primaries")) == (
+        "bt709", "iec61966-2-1", "bt709"), picture
+    minimum = (2, 2) if args.capture_window or args.capture_region else (640, 480)
+    assert picture["width"] >= minimum[0] and picture["height"] >= minimum[1], picture
     assert abs(result["durationSeconds"] - result["videoDurationSeconds"]) < 1 / 48000, result
     assert abs(float(video_probe["format"]["duration"]) - float(probe["format"]["duration"])) < 0.1
     # Preserve the variable screen-frame timestamps; a guessed constant output

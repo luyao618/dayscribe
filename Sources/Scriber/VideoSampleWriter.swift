@@ -54,6 +54,11 @@ final class VideoSampleWriter: @unchecked Sendable {
         video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width, AVVideoHeightKey: height,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_IEC_sRGB,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2
+            ],
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: max(1_000_000, min(80_000_000, width * height * 6)),
                 AVVideoExpectedSourceFrameRateKey: 30,

@@ -13,6 +13,7 @@ final class SystemAudioDiagnostic {
     private let switchSources: Bool
     private let panelSnapshots: Bool
     private let recordScreen: Bool
+    private let captureRequest: CaptureRequest?
     private var switching: Task<Void, Never>?
     private var sourceEvents: [[String: Any]] = []
     private var trace: [[String: Any]] = []
@@ -26,7 +27,7 @@ final class SystemAudioDiagnostic {
 
     init(directory: URL, seconds: Double, sources: Set<AudioSource> = [.system],
          microphoneDeviceID: String? = nil, switchSources: Bool = false, panelSnapshots: Bool = false,
-         recordScreen: Bool = false,
+         recordScreen: Bool = false, captureRequest: CaptureRequest? = nil,
          onStatus: @escaping (String) -> Void,
          onFinished: @escaping () -> Void) {
         self.directory = directory
@@ -36,6 +37,7 @@ final class SystemAudioDiagnostic {
         self.switchSources = switchSources
         self.panelSnapshots = panelSnapshots
         self.recordScreen = recordScreen
+        self.captureRequest = captureRequest
         self.onStatus = onStatus
         self.onFinished = onFinished
     }
@@ -44,7 +46,7 @@ final class SystemAudioDiagnostic {
         recorder.onUpdate = { [weak self] in self?.publish() }
         timer = Task { [weak self] in
             guard let self else { return }
-            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID, recordScreen: recordScreen)
+            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID, recordScreen: recordScreen, captureRequest: captureRequest)
             guard recorder.state == .recording, !Task.isCancelled else { return }
             if switchSources {
                 switching = Task { [weak self] in
@@ -109,6 +111,7 @@ final class SystemAudioDiagnostic {
             "videoPath": recorder.videoURL?.path ?? "",
             "videoFrames": recorder.videoSummary?.videoFrames ?? 0,
             "videoEpochHostTime": recorder.videoEpochHostTime ?? 0,
+            "captureTarget": recorder.captureTargetTitle,
             "videoDurationSeconds": recorder.videoSummary?.duration ?? 0,
             "screenReceivedFrames": recorder.videoMetrics.receivedFrames,
             "screenFirstHostTime": recorder.videoMetrics.firstHostTime ?? 0,
