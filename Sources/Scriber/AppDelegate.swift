@@ -9,10 +9,14 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private let recorder = AudioRecorder(defaults: .standard, historyStore: .standard)
-    private let history = RecordingHistoryModel(store: .standard)
-    private let playback = RecordingPlaybackModel(store: .standard)
-    private let shortcut = GlobalPanelShortcut(defaults: .standard)
+    private let recorder: AudioRecorder
+    private let history: RecordingHistoryModel
+    private let playback: RecordingPlaybackModel
+    private let shortcut: GlobalPanelShortcut
+    private let recovery: RecordingRecoveryModel
+    private let store: RecordingHistoryStore
+    private let validationRoot: URL?
+    private let invalidValidationArguments: Bool
     private var lastHistoryState = AudioRecorder.State.idle
     private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
@@ -22,8 +26,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var directoryPicker: NSOpenPanel?
     private var isQuitting = false
     private var historyRenameInProgress = false
+    private var quitDuringRecovery = false
+
+    override init() {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--validation-root"), args.indices.contains(i + 1), args[i + 1].hasPrefix("/") {
+            let root = URL(fileURLWithPath: args[i + 1], isDirectory: true).standardizedFileURL
+            validationRoot = root
+            store = RecordingHistoryStore(indexURL: root.appendingPathComponent("history.json"))
+            invalidValidationArguments = false
+        } else {
+            validationRoot = nil
+            invalidValidationArguments = args.contains("--validation-root")
+            // A malformed validation invocation must never fall back to the
+            // user's real history. Launch is rejected before any store access.
+            store = invalidValidationArguments ? RecordingHistoryStore(indexURL: URL(fileURLWithPath: "/dev/null")) : .standard
+        }
+        recorder = AudioRecorder(defaults: validationRoot == nil && !invalidValidationArguments ? .standard : nil, historyStore: store)
+        history = RecordingHistoryModel(store: store)
+        playback = RecordingPlaybackModel(store: store)
+        shortcut = GlobalPanelShortcut(defaults: validationRoot == nil && !invalidValidationArguments ? .standard : nil)
+        recovery = RecordingRecoveryModel(store: store)
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if invalidValidationArguments { NSLog("--validation-root requires an absolute directory"); NSApp.terminate(nil); return }
         if writePermissionCheckIfRequested() { return }
         installEditingMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -42,17 +70,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.delegate = self
         playback.onUpdate = { [weak self] in self?.writeUIReport() }
         shortcut.onUpdate = { [weak self] in self?.writeUIReport() }
-        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, shortcut: shortcut, onQuit: { [weak self] in self?.requestQuit() },
+        recovery.onUpdate = { [weak self] in
+            guard let self else { return }
+            self.writeUIReport()
+            if !self.recovery.isRunning { self.refreshHistory() }
+            self.finishDeferredTermination()
+        }
+        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, shortcut: shortcut, recovery: recovery, onQuit: { [weak self] in self?.requestQuit() },
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
                                    onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
                                    onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
                                    onRevealHistory: { [weak self] id, kind in self?.revealHistory(id, kind: kind) },
-                                   onRenameHistory: { [weak self] id, title in await self?.renameHistory(id, title: title) }))
+                                   onRenameHistory: { [weak self] id, title in await self?.renameHistory(id, title: title) },
+                                   onRetryRecovery: { [weak self] in self?.beginRecovery() }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
             if self.recorder.state != self.lastHistoryState {
                 self.lastHistoryState = self.recorder.state
+                if self.recorder.state.active { self.recovery.pauseForRecording() }
+                else { self.recovery.resumeAfterRecording() }
                 if [.recording, .completed, .failed].contains(self.recorder.state) { self.refreshHistory() }
             }
             self.finishDeferredTermination()
@@ -84,7 +121,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         startCheckIfRequested()
         if systemCheck == nil {
             shortcut.start { [weak self] in self?.invokeShortcut() }
-            refreshHistory(discover: true)
+            Task { [weak self] in
+                guard let self, !self.isQuitting else { return }
+                if let root = self.validationRoot {
+                    do {
+                        for mode in RecordingMode.allCases {
+                            let folder = root.appendingPathComponent(mode == .audio ? "audio" : "video", isDirectory: true)
+                            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                            try await self.recorder.setDestination(folder, for: mode)
+                        }
+                    } catch { self.recorder.reportControlMessage(error.localizedDescription); return }
+                }
+                guard !self.isQuitting else { return }
+                self.beginRecovery()
+                self.refreshHistory()
+                if self.validationRoot != nil, CommandLine.arguments.contains("--validation-record-audio") {
+                    await self.recorder.start()
+                }
+            }
         }
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
@@ -149,9 +203,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "videoDirectory": recorder.destination(for: .video).path,
             "choosingDirectory": directoryPicker != nil,
             "historyCount": history.entries.count,
+            "historyAvailableCount": history.entries.filter { $0.fileStates.values.contains(.available) }.count,
             "historyLoading": history.isLoading,
             "historyError": history.errorMessage ?? history.discoveryMessage ?? "",
             "historyRenaming": historyRenameInProgress,
+            "recoveryRunning": recovery.isRunning,
+            "recoveryPaused": recovery.isPaused,
+            "recoveryChecked": recovery.hasChecked,
+            "recoveryCount": recovery.recoveredCount,
+            "recoveryIssues": recovery.issueCount,
+            "recoveryBusy": recovery.busyCount,
+            "recoveryTitle": recovery.currentTitle,
+            "recoveryID": recovery.currentID?.uuidString ?? "",
+            "recoveryMessage": recovery.message ?? "",
+            "quitDuringRecovery": quitDuringRecovery,
             "shortcutKeyCode": shortcut.shortcut.keyCode,
             "shortcutModifiers": shortcut.shortcut.modifiers,
             "shortcutEnabled": shortcut.enabled,
@@ -209,6 +274,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         isQuitting = true
+        quitDuringRecovery = quitDuringRecovery || recovery.isRunning
+        recovery.cancelForQuit()
         playback.close()
         directoryPicker?.cancel(nil)
         capturePicker.cancel()
@@ -222,7 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             Task { await recorder.stop(interrupted: true) }
             return .terminateLater
         }
-        if historyRenameInProgress { terminationDeferred = true; return .terminateLater }
+        if historyRenameInProgress || recovery.isRunning { terminationDeferred = true; return .terminateLater }
         return .terminateNow
     }
 
@@ -295,6 +362,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func requestQuit() {
         isQuitting = true
+        quitDuringRecovery = quitDuringRecovery || recovery.isRunning
+        recovery.cancelForQuit()
         playback.close()
         directoryPicker?.cancel(nil)
         if let systemCheck, systemCheck.recorder.state.active {
@@ -339,14 +408,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func refreshHistory(discover: Bool = false) {
         guard systemCheck == nil, !isQuitting else { return }
-        let folders = discover ? Array(Set(RecordingMode.allCases.flatMap {
-            [RecordingDestination.defaultURL(for: $0), recorder.destination(for: $0)]
-        } + [RecordingDestination.defaultURL(for: .audio).deletingLastPathComponent()])) : []
+        let folders = discover ? recoveryDirectories : []
         Task { [weak self] in
             guard let self else { return }
             await self.history.refresh(discovering: folders)
             self.writeUIReport()
         }
+    }
+
+    private var recoveryDirectories: [URL] {
+        if let root = validationRoot { return [root.appendingPathComponent("audio"), root.appendingPathComponent("video")] }
+        return Array(Set(RecordingMode.allCases.flatMap {
+            [RecordingDestination.defaultURL(for: $0), recorder.destination(for: $0)]
+        } + [RecordingDestination.defaultURL(for: .audio).deletingLastPathComponent()]))
+    }
+
+    private func beginRecovery() {
+        guard systemCheck == nil, !isQuitting else { return }
+        if let id = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            recovery.deferForAnotherInstance()
+            return
+        }
+        recovery.start(discovering: recoveryDirectories)
     }
 
     private func revealHistory(_ id: UUID, kind: RecordingFileKind? = nil) {
@@ -360,6 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func renameHistory(_ id: UUID, title: String) async -> String? {
         guard !historyRenameInProgress, !isQuitting else { return "正在处理文件，请稍候。" }
+        guard recovery.currentID != id else { return "这条录制正在恢复，请稍候。" }
         guard !(recorder.sessionID == id && recorder.state.active) else { return "请先停止并保存当前录制。" }
         historyRenameInProgress = true
         let selectedKind = playback.selectedKind
@@ -372,7 +457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 let success = await recorder.renameSavedRecording(title)
                 message = success ? nil : recorder.controlMessage ?? "未能完成改名。"
             } else {
-                message = try await RecordingHistoryStore.standard.rename(id, title: title).errorMessage
+                message = try await store.rename(id, title: title).errorMessage
             }
             await history.refresh()
             if !isQuitting { await playback.open(id, kind: selectedKind).value }
@@ -381,7 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func finishDeferredTermination() {
-        guard systemCheck == nil, terminationDeferred, !recorder.state.active, !historyRenameInProgress else { return }
+        guard systemCheck == nil, terminationDeferred, !recorder.state.active, !historyRenameInProgress, !recovery.isRunning else { return }
         terminationDeferred = false
         DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
     }
