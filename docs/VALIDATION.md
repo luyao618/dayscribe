@@ -488,6 +488,12 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Offscreen native restored mode and range type](screenshots/rendered-restored-recording-options.png)
 
+## Refreshed delivery candidate — 2026-09-18
+
+- `build/candidate/Scriber.app` now contains merged Sources from79295eb (tree08c6e0f352e7808ed40235e22bb639494d456e32), including interrupted-video publication, bounded recovery-prefix copying and remembered mode/range type. The earlier candidate is archived locally. Existing eight-hour and second two-hour capture binaries remain unchanged.
+- Release build and existing-development-identity signature passed. System launch and permission checks, normal-app isolated dual capture, AppKit quit/save, full decoding and fresh-process restoration of one available history record passed **4.576833333 s /219688 frames**. Personal history remained unchanged. Evidence: `artifacts/delivery-candidate-r2.json`, `delivery-candidate-r2-build.log`, `delivery-candidate-r2-smoke.log`, `delivery-candidate-jl471nk2/verified.json`.
+- This verifies the updated package and normal lifecycle, not GUI clicks under the locked desktop. Long test results, physical device/sleep/lock transitions and PR41/47 native interaction follow-up remain required. A fresh repository audit confirms all43 goal PRs5–47 are merged ancestors of the current default branch.
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.
