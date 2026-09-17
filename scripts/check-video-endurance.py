@@ -105,7 +105,12 @@ try:
                         next_sample = elapsed+min(30, args.seconds/6)
                 result = read('result.json')
                 if result: break
-                assert app.poll() is None and fixture.poll() is None and now < deadline, 'Capture/fixture stopped or timed out'
+                if fixture.poll() is not None:
+                    raise RuntimeError(f'Video fixture exited with code {fixture.returncode}; see fixture.log')
+                if app.poll() is not None:
+                    raise RuntimeError(f'Capture exited with code {app.returncode} without a final report; see app.log')
+                if now >= deadline:
+                    raise TimeoutError('Capture/start/finalization deadline exceeded')
                 time.sleep(.2 if started is None else 1)
         app.wait(timeout=15)
         assert app.returncode == 0 and result['status'] == 'completed' and not result['error'], result
@@ -152,7 +157,10 @@ try:
             'resourceTrendNeedsReview': True})
         print('PASS: real-time video, native/full decode, identical paired audio and beginning/end synchronization', metrics, flush=True)
 except BaseException as error:
-    save('failure.json', {'error': str(error), 'appPID': app.pid if app else None})
+    save('failure.json', {'error': str(error), 'appPID': app.pid if app else None,
+                         'appExitCode': app.poll() if app else None,
+                         'fixturePID': fixture.pid if fixture else None,
+                         'fixtureExitCode': fixture.poll() if fixture else None})
     raise
 finally:
     if app and app.poll() is None: app.terminate(); app.wait(timeout=30)
