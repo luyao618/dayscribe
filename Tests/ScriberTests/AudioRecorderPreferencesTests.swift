@@ -3,6 +3,26 @@ import Testing
 @testable import Scriber
 
 struct AudioRecorderPreferencesTests {
+    @Test @MainActor func modeAndRangeTypeRestoreIndependentlyWithoutRememberingATarget() throws {
+        let name = "scriber-test-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let initial = AudioRecorder(defaults: defaults)
+        #expect(initial.preferredMode == .audio && initial.preferredCaptureKind == .region)
+        #expect(initial.setPreferredMode(.video) && initial.setPreferredCaptureKind(.window))
+        let restored = AudioRecorder(defaults: defaults)
+        #expect(restored.preferredMode == .video && restored.preferredCaptureKind == .window)
+        #expect(restored.state == .idle && restored.videoURL == nil && restored.captureTargetTitle.isEmpty)
+        #expect(restored.setPreferredMode(.audio))
+        #expect(AudioRecorder(defaults: defaults).preferredCaptureKind == .window)
+        defaults.set("unknown", forKey: "recordingCaptureKind")
+        #expect(AudioRecorder(defaults: defaults).preferredCaptureKind == .region)
+        #expect(defaults.string(forKey: "recordingCaptureKind") == "unknown")
+        let isolated = AudioRecorder()
+        #expect(isolated.setPreferredMode(.video))
+        #expect(AudioRecorder().preferredMode == .audio)
+    }
+
     @Test @MainActor func remembersSelectionButNeverPersistsAnEmptySourceSet() async throws {
         let name = "scriber-test-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: name))

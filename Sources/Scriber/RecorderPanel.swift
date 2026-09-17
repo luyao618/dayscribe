@@ -176,7 +176,7 @@ struct RecorderPanel: View {
     private var modePicker: some View {
         HStack(spacing: 3) {
             ForEach(RecordingMode.allCases, id: \.self) { choice in
-                Button { mode = choice } label: {
+                Button { if recorder.setPreferredMode(choice) { mode = choice } } label: {
                     Label(choice.title, systemImage: choice.symbol)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(mode == choice ? PanelPalette.ink : PanelPalette.slate)
@@ -292,7 +292,9 @@ struct RecorderPanel: View {
         .popover(isPresented: $showsCaptureKinds) {
             VStack(spacing: 2) {
                 ForEach(CaptureKind.allCases, id: \.self) { kind in
-                    Button { captureKind = kind; showsCaptureKinds = false } label: {
+                    Button {
+                        if recorder.setPreferredCaptureKind(kind) { captureKind = kind; showsCaptureKinds = false }
+                    } label: {
                         HStack(spacing: 10) {
                             Image(systemName: kind.symbol).frame(width: 18)
                             Text(kind.title)
