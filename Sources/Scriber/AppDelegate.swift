@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var terminationSignal: DispatchSourceSignal?
     private var systemCheck: SystemAudioDiagnostic?
     private var terminationDeferred = false
+    private var directoryPicker: NSOpenPanel?
+    private var isQuitting = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if writePermissionCheckIfRequested() { return }
@@ -34,7 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.delegate = self
         installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() },
-                                   onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) }))
+                                   onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
+                                   onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
@@ -107,6 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "videoPath": recorder.videoURL?.path ?? "",
             "recordingTitle": recorder.recordingTitle,
             "recordingDirectory": recorder.recordingDirectory?.path ?? "",
+            "audioDirectory": recorder.destination(for: .audio).path,
+            "videoDirectory": recorder.destination(for: .video).path,
+            "choosingDirectory": directoryPicker != nil,
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
@@ -142,6 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        isQuitting = true
+        directoryPicker?.cancel(nil)
         capturePicker.cancel()
         if let systemCheck, systemCheck.recorder.state.active {
             terminationDeferred = true
@@ -219,6 +227,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func requestQuit() {
+        isQuitting = true
+        directoryPicker?.cancel(nil)
         if let systemCheck, systemCheck.recorder.state.active {
             Task { await systemCheck.stop() }
         } else if recorder.state.active {
@@ -229,6 +239,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else {
             NSApp.terminate(nil)
         }
+    }
+
+    private func chooseDirectory(for mode: RecordingMode) async {
+        guard directoryPicker == nil, !isQuitting else { return }
+        let picker = NSOpenPanel()
+        picker.title = "选择\(mode.title)保存位置"
+        picker.prompt = "选择文件夹"
+        picker.canChooseDirectories = true
+        picker.canChooseFiles = false
+        picker.allowsMultipleSelection = false
+        picker.canCreateDirectories = true
+        picker.directoryURL = recorder.destination(for: mode)
+        directoryPicker = picker
+        recorder.reportControlMessage(nil)
+        popover.performClose(nil)
+        NSApp.activate()
+        writeUIReport()
+        let response = await withCheckedContinuation { continuation in
+            picker.begin { continuation.resume(returning: $0) }
+        }
+        directoryPicker = nil
+        guard !isQuitting else { return }
+        if response == .OK, let url = picker.url {
+            do { try await recorder.setDestination(url, for: mode) }
+            catch { recorder.reportControlMessage("无法更改保存位置：\(error.localizedDescription)") }
+        }
+        writeUIReport()
+        showPanel()
     }
 
     private func installPanel<Content: View>(_ content: Content) {
@@ -248,6 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func showPanel() {
+        guard !isQuitting else { return }
         guard let button = statusItem?.button else { return }
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)

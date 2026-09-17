@@ -31,6 +31,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var lastSavedDuration = ""
     @Published private(set) var microphoneName = "默认麦克风"
     @Published private(set) var recordingTitle = ""
+    @Published private(set) var destinationDirectories: [RecordingMode: URL] = [:]
     private(set) var recordingDirectory: URL?
     private(set) var outputURL: URL?
     private(set) var videoURL: URL?
@@ -58,6 +59,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
         super.init()
+        destinationDirectories = Dictionary(uniqueKeysWithValues: RecordingMode.allCases.map {
+            ($0, RecordingDestination.restored(from: defaults, for: $0))
+        })
         let mask = (defaults?.object(forKey: "recordingSources") as? Int ?? 3) & 3
         sources = Set(AudioSource.allCases.filter { (mask == 0 ? 3 : mask) & (1 << $0.rawValue) != 0 })
         microphoneName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
@@ -89,6 +93,17 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func reportControlMessage(_ message: String?) { controlMessage = message }
+
+    func destination(for mode: RecordingMode) -> URL {
+        destinationDirectories[mode] ?? RecordingDestination.defaultURL(for: mode)
+    }
+
+    func setDestination(_ url: URL, for mode: RecordingMode) async throws {
+        let checked = try await Task.detached { try RecordingDestination.validate(url) }.value
+        destinationDirectories[mode] = checked
+        defaults?.set(checked.path, forKey: mode.directoryPreferenceKey)
+        onUpdate?()
+    }
 
     /// Only changes the desired final basename; open encoder URLs never move.
     @discardableResult
@@ -215,6 +230,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                recordScreen recordVideo: Bool = false, captureRequest: CaptureRequest? = nil, title: String? = nil) async {
         let recordScreen = recordVideo || captureRequest != nil
         guard !state.active else { return }
+        let folder = directory ?? destination(for: recordScreen ? .video : .audio)
         let sources = selection ?? self.sources
         let token = UUID()
         generation = token
@@ -229,7 +245,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         outputURL = nil
         videoURL = nil
         recordingTitle = ""
-        recordingDirectory = nil
+        recordingDirectory = folder
         sessionFiles = nil
         videoSummary = nil
         videoEpochHostTime = nil
@@ -266,8 +282,6 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                     ?? content.displays.first else {
                 throw AudioWriteError.encoding("没有可用的显示器。")
             }
-            let folder = directory ?? FileManager.default.homeDirectoryForCurrentUser
-                .appending(path: "Movies/Scriber/\(recordScreen ? "录屏" : "录音")", directoryHint: .isDirectory)
             let desiredTitle = recordingTitle
             let session = try await Task.detached {
                 try RecordingSessionFiles.create(directory: folder, title: desiredTitle, video: recordScreen)
