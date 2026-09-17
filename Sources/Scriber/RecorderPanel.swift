@@ -11,6 +11,7 @@ struct RecorderPanel: View {
     @ObservedObject var history = RecordingHistoryModel()
     @ObservedObject var playback = RecordingPlaybackModel()
     @ObservedObject var shortcut = GlobalPanelShortcut()
+    @ObservedObject var recovery = RecordingRecoveryModel()
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
@@ -19,6 +20,7 @@ struct RecorderPanel: View {
     var onRefreshHistory: (() -> Void)? = nil
     var onRevealHistory: ((UUID, RecordingFileKind?) -> Void)? = nil
     var onRenameHistory: ((UUID, String) async -> String?)? = nil
+    var onRetryRecovery: (() -> Void)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
@@ -40,7 +42,7 @@ struct RecorderPanel: View {
             } else if detailID != nil {
                 RecordingDetailPanel(playback: playback, onBack: { detailID = nil; showsHistory = true },
                                      onReveal: { onRevealHistory?($0, $1) },
-                                     allowsRename: !(recorder.sessionID == detailID && recorder.state.active),
+                                     allowsRename: !(recorder.sessionID == detailID && recorder.state.active) && recovery.currentID != detailID,
                                      onRename: onRenameHistory)
             } else if showsHistory {
                 RecordingHistoryPanel(history: history, recorder: recorder, onBack: { showsHistory = false },
@@ -57,6 +59,24 @@ struct RecorderPanel: View {
                     if mode == .video { captureTarget }
                     sources
                     destination
+                    if let message = recovery.message {
+                        VStack(spacing: 6) {
+                            Text(message).font(.system(size: 11))
+                                .foregroundStyle(recovery.issueCount > 0 || recovery.errorMessage != nil ? PanelPalette.record : PanelPalette.jade)
+                                .fixedSize(horizontal: false, vertical: true)
+                            HStack(spacing: 16) {
+                                if !recovery.isRunning && history.isAvailable {
+                                    Button("查看录制记录") { showsHistory = true; onRefreshHistory?() }
+                                }
+                                if !recovery.isRunning, let retry = onRetryRecovery,
+                                   recovery.issueCount > 0 || recovery.busyCount > 0 || recovery.errorMessage != nil {
+                                    Button("重试恢复", action: retry).disabled(recorder.state.active)
+                                }
+                            }
+                            .font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(PanelPalette.iris)
+                        }
+                        .padding(.bottom, 12)
+                    }
                     if let error = recorder.controlMessage ?? recorder.errorMessage ?? recorder.sourceFailureMessage ?? shortcut.errorMessage {
                         Text(error)
                             .font(.system(size: 11))
@@ -139,6 +159,10 @@ struct RecorderPanel: View {
                                 }
                             }
                             .disabled(!shortcut.isStarted).accessibilityLabel("快捷键设置")
+                            if let retry = onRetryRecovery {
+                                Button("检查未完成录制") { showsSettings = false; retry() }
+                                    .disabled(recovery.isRunning || recorder.state.active)
+                            }
                             Button("退出 Scriber") { onQuit() }
                         }
                         .padding(20)

@@ -76,6 +76,12 @@ struct RecordingHistoryRow: View {
             }
         }
         if entry.manifest == nil { return "记录无法读取" }
+        if entry.manifest?.recovery?.completedAt != nil, entry.manifest?.published.isEmpty == false {
+            if entry.manifest?.published.count != entry.manifest?.paths.count { return "部分已恢复" }
+            if !entry.fileStates.values.contains(.missing) && !entry.fileStates.values.contains(.unavailable) {
+                return video ? "已恢复 · MP4 + M4A" : "已恢复 · M4A 音频"
+            }
+        }
         if entry.manifest?.published.count != entry.manifest?.paths.count { return "未完整保存" }
         if entry.fileStates.values.contains(.missing) || entry.fileStates.values.contains(.unavailable) { return "文件缺失或无法访问" }
         if entry.issue != nil { return "保存时出现问题" }
