@@ -13,6 +13,13 @@ struct RecordingHistoryReference: Codable, Identifiable, Equatable, Sendable {
         initialTitle = title
         manifestURL = session.manifestURL
     }
+
+    init(manifestURL: URL, manifest: RecordingSessionFiles.Manifest) {
+        id = manifest.id
+        startedAt = manifest.startedAt
+        initialTitle = manifest.title
+        self.manifestURL = manifestURL
+    }
 }
 
 struct RecordingHistoryEntry: Identifiable, Sendable {
@@ -55,8 +62,12 @@ actor RecordingHistoryStore {
     /// Complete this before opening encoders. A failed index write must not let
     /// capture appear to start with no durable reference to its session.
     func register(_ reference: RecordingHistoryReference) throws {
+        try registerAll([reference])
+    }
+
+    private func registerAll(_ references: [RecordingHistoryReference]) throws {
         guard indexURL.isFileURL else { throw RecordingHistoryError.invalidIndex }
-        try Self.validate(reference)
+        try references.forEach(Self.validate)
         let directory = indexURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let lockURL = directory.appendingPathComponent("history.lock")
@@ -68,18 +79,57 @@ actor RecordingHistoryStore {
         // Read again under the file lock so separate app/store instances cannot
         // replace each other's registrations with a stale in-memory snapshot.
         var index = try readIndex()
-        if let existing = index.recordings.first(where: { $0.id == reference.id }) {
-            guard existing.manifestURL == reference.manifestURL, existing.startedAt == reference.startedAt else {
-                throw RecordingHistoryError.invalidIndex
+        let originalCount = index.recordings.count
+        for reference in references {
+            if let existing = index.recordings.first(where: { $0.id == reference.id }) {
+                guard existing.manifestURL == reference.manifestURL, existing.startedAt == reference.startedAt else {
+                    throw RecordingHistoryError.invalidIndex
+                }
+            } else {
+                index.recordings.append(reference)
             }
-            return
         }
-        index.recordings.append(reference)
+        guard index.recordings.count != originalCount else { return }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(index)
         guard data.count <= 8 * 1024 * 1024 else { throw RecordingHistoryError.oversized }
         try data.write(to: indexURL, options: .atomic)
+    }
+
+    /// Only inspect Scriber descriptors one level below explicitly known folders.
+    /// Unrelated media, subdirectories and symlinked session directories are ignored.
+    func discover(in directories: [URL]) async throws -> [String] {
+        _ = try readIndex() // A damaged registry must never be rebuilt implicitly.
+        let result = await Task.detached(priority: .utility) {
+            var references: [RecordingHistoryReference] = []
+            var issues: [String] = []
+            for directory in Set(directories.map(\.standardizedFileURL)) where directory.isFileURL {
+                do {
+                    let children = try FileManager.default.contentsOfDirectory(at: directory,
+                        includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                    for child in children where child.lastPathComponent.hasPrefix(".scriber-") {
+                        do {
+                            let name = child.lastPathComponent
+                            guard let id = UUID(uuidString: String(name.dropFirst(9))), name == ".scriber-\(id.uuidString)" else { continue }
+                            let values = try child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                            guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+                            let url = child.appendingPathComponent("session.json")
+                            let manifest = try RecordingSessionFiles.Manifest.read(from: url)
+                            let reference = RecordingHistoryReference(manifestURL: url, manifest: manifest)
+                            try Self.validate(reference)
+                            guard Self.readEntry(reference).manifest != nil else { throw RecordingHistoryError.invalidManifest }
+                            references.append(reference)
+                        } catch { issues.append("\(child.lastPathComponent)：\(error.localizedDescription)") }
+                    }
+                } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+                    continue
+                } catch { issues.append("\(directory.path)：\(error.localizedDescription)") }
+            }
+            return (references, issues)
+        }.value
+        try registerAll(result.0)
+        return result.1
     }
 
     func load() async throws -> [RecordingHistoryEntry] {

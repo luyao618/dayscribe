@@ -7,11 +7,14 @@ extension Notification.Name {
 
 struct RecorderPanel: View {
     @ObservedObject var recorder: AudioRecorder
+    @ObservedObject var history = RecordingHistoryModel()
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
     var onStartVideo: ((CaptureKind, String?) async -> Void)? = nil
     var onChooseDirectory: ((RecordingMode) async -> Void)? = nil
+    var onRefreshHistory: (() -> Void)? = nil
+    var onRevealHistory: ((UUID) -> Void)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
@@ -21,10 +24,14 @@ struct RecorderPanel: View {
     @State private var nameError: String?
     @FocusState private var nameFocused: Bool
     @State private var showsDestinations = false
+    @State private var showsHistory = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsDestinations {
+            if showsHistory {
+                RecordingHistoryPanel(history: history, recorder: recorder, onBack: { showsHistory = false },
+                                      onRefresh: { onRefreshHistory?() }, onReveal: { onRevealHistory?($0) })
+            } else if showsDestinations {
                 RecordingDestinationsPanel(recorder: recorder, onBack: { showsDestinations = false },
                                            onChoose: onChooseDirectory)
             } else {
@@ -78,11 +85,11 @@ struct RecorderPanel: View {
                 .tracking(-0.5)
             Spacer()
             HStack(spacing: 6) {
-                Button {} label: { Image(systemName: "clock.arrow.circlepath") }
+                Button { showsHistory = true; onRefreshHistory?() } label: { Image(systemName: "clock.arrow.circlepath") }
                     .buttonStyle(PanelIconButtonStyle())
-                    .disabled(true)
-                    .help("历史列表暂不可用；下方可查看最近一次录制")
-                    .accessibilityLabel("历史列表，暂不可用")
+                    .disabled(!history.isAvailable)
+                    .help("查看录制历史")
+                    .accessibilityLabel("录制历史")
                 Button { showsSettings.toggle() } label: { Image(systemName: "gearshape") }
                     .buttonStyle(PanelIconButtonStyle())
                     .help("设置")
@@ -367,14 +374,16 @@ struct RecorderPanel: View {
             HStack {
                 Text("最近录制").fontWeight(.semibold)
                 Spacer()
-                Button("查看全部 ›") {}
-                    .buttonStyle(.plain).disabled(true)
-                    .help("完整历史列表暂不可用")
+                Button("查看全部 ›") { showsHistory = true; onRefreshHistory?() }
+                    .buttonStyle(.plain).disabled(!history.isAvailable)
+                    .help("查看录制历史")
             }
             .font(.system(size: 11))
             .foregroundStyle(PanelPalette.slate)
             .padding(.bottom, 9)
-            if let url = recorder.lastSavedURL {
+            if let entry = history.entries.first(where: { $0.fileStates.values.contains(.available) }) {
+                RecordingHistoryRow(entry: entry, recorder: recorder) { onRevealHistory?(entry.id) }
+            } else if let url = recorder.lastSavedURL {
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting(recorder.lastSavedFiles)
                 } label: {
@@ -402,7 +411,7 @@ struct RecorderPanel: View {
             } else {
                 HStack(spacing: 10) {
                     recordingIcon
-                    Text("录制完成后，文件会显示在这里")
+                    Text(history.errorMessage == nil ? "录制完成后，文件会显示在这里" : "历史暂时无法读取，请打开历史查看")
                         .font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
                     Spacer()
                 }
