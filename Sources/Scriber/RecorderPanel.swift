@@ -1,15 +1,24 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let scriberPanelClosing = Notification.Name("scriber.panelClosing")
+}
+
 struct RecorderPanel: View {
     @ObservedObject var recorder: AudioRecorder
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
-    var onStartVideo: ((CaptureKind) async -> Void)? = nil
+    var onStartVideo: ((CaptureKind, String?) async -> Void)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
+    @State private var pendingTitles: [RecordingMode: String] = [:]
+    @State private var isEditingName = false
+    @State private var nameDraft = ""
+    @State private var nameError: String?
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,6 +52,12 @@ struct RecorderPanel: View {
         .background(PanelPalette.pearl)
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.7)))
+        .onReceive(NotificationCenter.default.publisher(for: .scriberPanelClosing)) { _ in
+            // A transient NSPopover consumes Escape before the field can receive it.
+            isEditingName = false
+            nameFocused = false
+            nameError = nil
+        }
     }
 
     private var header: some View {
@@ -96,7 +111,7 @@ struct RecorderPanel: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(mode == choice ? .isSelected : [])
-                .disabled(recorder.state.active || isSelecting)
+                .disabled(recorder.state.active || isSelecting || isEditingName)
             }
         }
         .padding(3)
@@ -121,21 +136,54 @@ struct RecorderPanel: View {
                 .frame(height: 61)
                 .accessibilityLabel("录制时长")
                 .accessibilityValue(clockText)
-            Button {} label: {
+            if isEditingName {
                 HStack(spacing: 8) {
-                    Text(filename)
-                        .font(.system(size: 13, weight: .medium))
-                        .lineLimit(1).truncationMode(.middle)
-                        .frame(maxWidth: .infinity)
-                    Image(systemName: "pencil")
-                        .font(.system(size: 11)).foregroundStyle(PanelPalette.muted)
+                    TextField("录制文件名", text: $nameDraft)
+                        .textFieldStyle(.plain)
+                        .autocorrectionDisabled()
+                        .multilineTextAlignment(.center)
+                        .focused($nameFocused)
+                        .accessibilityLabel("录制文件名")
+                        .onSubmit { Task { await applyName() } }
+                        .onExitCommand { isEditingName = false; nameError = nil }
+                        .onAppear { DispatchQueue.main.async { nameFocused = true } }
+                    Button { Task { await applyName() } } label: {
+                        Image(systemName: "checkmark").foregroundStyle(PanelPalette.iris)
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("确认文件名")
                 }
+                .font(.system(size: 13, weight: .medium))
                 .frame(width: 260, height: 27)
+                .background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 5))
+                .disabled(recorder.isBusy)
+            } else {
+                Button {
+                    nameDraft = matchesRecordingMode && !recorder.recordingTitle.isEmpty
+                        ? recorder.recordingTitle : pendingTitles[mode] ?? ""
+                    nameError = nil
+                    nameFocused = false
+                    isEditingName = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(filename)
+                            .font(.system(size: 13, weight: .medium))
+                            .lineLimit(1).truncationMode(.middle)
+                            .frame(maxWidth: .infinity)
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11)).foregroundStyle(PanelPalette.muted)
+                    }
+                    .frame(width: 260, height: 27)
+                }
+                .buttonStyle(.plain)
+                .disabled(recorder.isBusy || isSelecting || (matchesRecordingMode && recorder.state == .failed))
+                .help("修改文件名，回车确认，Esc 取消；重名会自动编号")
+                .accessibilityLabel("修改文件名")
+                .accessibilityValue(filename)
             }
-            .buttonStyle(.plain)
-            .disabled(true)
-            .help("文件名自动生成；修改文件名暂不可用")
-            .accessibilityLabel("文件名：\(filename)，改名暂不可用")
+            if let nameError {
+                Text(nameError).font(.system(size: 10)).foregroundStyle(PanelPalette.record)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 5)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 19)
@@ -235,14 +283,15 @@ struct RecorderPanel: View {
 
     private var primaryAction: some View {
         Button {
-            if recorder.isRecording { Task { await recorder.stop() } }
-            else {
-                Task {
+            Task {
+                if isEditingName, !(await applyName()), !recorder.isRecording { return }
+                if recorder.isRecording { await recorder.stop() }
+                else {
                     if mode == .video {
                         isSelecting = true
                         defer { isSelecting = false }
-                        await onStartVideo?(captureKind)
-                    } else { await recorder.start() }
+                        await onStartVideo?(captureKind, pendingTitles[mode])
+                    } else { await recorder.start(title: pendingTitles[mode]) }
                 }
             }
         } label: {
@@ -262,6 +311,29 @@ struct RecorderPanel: View {
         .buttonStyle(.plain)
         .disabled(recorder.isBusy || isSelecting || (mode == .video && onStartVideo == nil && !recorder.isRecording))
         .help(mode == .video ? "选择录制范围，保存视频和独立音频" : "录制已开启的声音来源")
+    }
+
+    @discardableResult
+    private func applyName() async -> Bool {
+        guard !recorder.isBusy else { return false }
+        do {
+            let title = try RecordingFilename.validated(nameDraft)
+            if matchesRecordingMode && recorder.isRecording {
+                guard recorder.setRecordingTitle(title) else { return false }
+            } else if matchesRecordingMode && recorder.state == .completed {
+                guard await recorder.renameSavedRecording(title) else {
+                    nameError = recorder.controlMessage
+                    return false
+                }
+            }
+            pendingTitles[mode] = title
+            isEditingName = false
+            nameError = nil
+            return true
+        } catch {
+            nameError = error.localizedDescription + (recorder.isRecording ? " 当前仍使用「\(recorder.recordingTitle)」。" : "")
+            return false
+        }
     }
 
     private var actionTitle: String {
@@ -339,7 +411,7 @@ struct RecorderPanel: View {
     private var clockText: String { matchesRecordingMode ? recorder.elapsedText : "00:00:00" }
     private var filename: String {
         if matchesRecordingMode, !recorder.recordingTitle.isEmpty { return recorder.recordingTitle }
-        return "开始录制后自动命名"
+        return pendingTitles[mode] ?? "开始录制后自动命名"
     }
     private var destinationURL: URL {
         if matchesRecordingMode, let url = recorder.recordingDirectory { return url }

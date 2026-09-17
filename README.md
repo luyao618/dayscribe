@@ -21,7 +21,7 @@
 
 ## 原生应用开发
 
-当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏／窗口／区域 MP4+M4A 已有真实采集验证，正式录屏入口和原生选择器已接入，实际点击流程已验证。录制已使用目标目录中的独立临时文件，完成写入后防覆盖保存；开始前命名和录制中改名的录制器接口已通过真实采集验证，面板编辑入口、目录设置和完整历史尚未接入。
+当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏／窗口／区域 MP4+M4A 已有真实采集验证，正式录屏入口和原生选择器已接入，实际点击流程已验证。录制已使用目标目录中的独立临时文件，完成写入后防覆盖保存；面板支持录制前、录制中和保存后改名，已通过实际界面操作验证；目录设置和完整历史尚未接入。
 
 需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
 
@@ -41,7 +41,9 @@
 
 全屏录制检查：`scripts/check-system-audio.py --video --sources both --seconds 8`，或直接 `open build/Scriber.app --args --display-video-check /absolute/output/directory 8 --audio-sources both`。会真实录下主显示器，输出同名 MP4（有声音）和 M4A；支持 `--quit-via-appkit --seconds 30 --interrupt-after 5` 验证退出保存，`scripts/check-source-switching.py --video` 验证录屏中切换声音。视频测试时长包含采集流准备前确定的公共起点，可能比指定等待时间稍长。独立音频与 MP4 解码后的声音样本对应；AAC 容器显示时长可能仍有几十毫秒编码填充。原始媒体仅保存在本地 artifacts/，不提交。
 
-文件命名检查：给 `scripts/check-system-audio.py` 追加 `--rename-check`，可验证录制开始前指定名称、录制中拒绝非法名称及应用新名称，同时保持写入路径不变；停止后验证最终名称、会话记录与完整解码。支持与 `--video`、`--panel`、`--quit-via-appkit` 组合。这是调用真实录制器的检查，面板改名控件仍待接入。
+文件名操作：点击计时器下方的文件名或铅笔，输入后按回车或勾号确认。Esc／关闭面板丢弃未确认的编辑。录制中改名不移动正在写入的文件；保存后改名会同时修改视频与音频，并在重名时自动编号。输入无效名称仍可停止录制，使用上一次已确认名称。每种模式在本次运行中保留最近确认的自定义名称供下次录制使用；默认自动名称仍按时间生成。
+
+文件命名检查：给 `scripts/check-system-audio.py` 追加 `--rename-check`，可验证录制开始前指定名称、录制中拒绝非法名称及应用新名称，同时保持写入路径不变；停止后验证最终名称、会话记录与完整解码。支持与 `--video`、`--panel`、`--quit-via-appkit` 组合。这是调用真实录制器的检查；面板改名、键盘操作及保存后双文件改名的实际 GUI 验证见 docs/VALIDATION.md。
 
 窗口／区域采集检查：`scripts/check-capture-targets.py` 会临时显示一个四色测试窗口，通过真实窗口录制和区域裁剪验证输出尺寸、位置、颜色及双文件；完成后关闭测试窗口。`--display-id <ID>` 可验证外接屏。单次测试可给 `check-system-audio.py --video` 追加 `--capture-window <window ID>`，或 `--capture-display <display ID> --capture-region x,y,width,height`；区域使用该显示器左上角为原点的逻辑点。正式范围选择 UI 已接入并通过实际点击验证。
 

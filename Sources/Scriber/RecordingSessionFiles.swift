@@ -80,6 +80,27 @@ struct RecordingSessionFiles: Sendable {
                      published: published, errorMessage: message)
     }
 
+    /// The caller supplies this session's current, closed published paths, since
+    /// previous renames may already have changed them from the staging paths.
+    func renamePublished(_ current: RecordingFileSet, title: String) -> Finalization {
+        var locations = current
+        var resolvedTitle = (current.urls[.video] ?? current.urls[.audio])?.deletingPathExtension().lastPathComponent ?? title
+        let kinds = Set(current.urls.keys)
+        var message: String?
+        do {
+            _ = try RecordingFilename.validated(title)
+            try checkpoint(title: resolvedTitle, files: current, closed: kinds, published: kinds, error: nil)
+            let result = current.relocate(to: directory, title: title)
+            locations = result.files
+            resolvedTitle = result.title ?? (locations.urls[.video] ?? locations.urls[.audio])?.deletingPathExtension().lastPathComponent ?? resolvedTitle
+            message = result.errorMessage
+            try checkpoint(title: resolvedTitle, files: locations, closed: kinds, published: kinds, error: message)
+        } catch {
+            message = [message, "改名记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
+        }
+        return .init(files: locations, title: resolvedTitle, published: kinds, errorMessage: message)
+    }
+
     private func checkpoint(title: String, files: RecordingFileSet, closed: Set<RecordingFileKind>,
                             published: Set<RecordingFileKind>, error: String?) throws {
         let manifest = Manifest(id: id, startedAt: startedAt, title: title,

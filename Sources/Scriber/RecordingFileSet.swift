@@ -25,7 +25,7 @@ private enum RecordingFileError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName: "请输入有效文件名：不能以点开头、包含路径分隔符或控制字符，长度不能超过 200 字节。"
+        case .invalidName: "名称不能为空、以点开头或包含斜杠、冒号、换行等字符；名称过长时请缩短。"
         case .invalidFiles: "录制文件不存在、不是普通文件，或文件列表无效。"
         case .tooManyCollisions: "同名文件过多，请换一个文件名。"
         }
