@@ -142,6 +142,7 @@ final class AudioSampleWriter: @unchecked Sendable {
                         self.writer.error?.localizedDescription ?? "写入已停止"))
                     return
                 }
+                if let end = self.lastEnd { self.writer.endSession(atSourceTime: end) }
                 self.input.markAsFinished()
                 self.writer.finishWriting {
                     self.queue.async {

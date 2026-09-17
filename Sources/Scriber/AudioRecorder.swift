@@ -30,6 +30,14 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var lastSavedDuration = ""
     @Published private(set) var microphoneName = "默认麦克风"
     private(set) var outputURL: URL?
+    private(set) var videoURL: URL?
+    private(set) var videoSummary: VideoWriteSummary?
+    private(set) var videoEpochHostTime: Double?
+    private(set) var videoMetrics = ScreenVideoMetrics()
+    private(set) var audioSaved = false
+    private(set) var videoSaved = false
+    private var videoStream: SCStream?
+    private var videoOutput: ScreenVideoOutput?
     private(set) var interrupted = false
     var onUpdate: (() -> Void)?
 
@@ -161,7 +169,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             ?? AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
     }
 
-    func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil) async {
+    func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil,
+               recordScreen: Bool = false) async {
         guard !state.active else { return }
         let sources = selection ?? self.sources
         let token = UUID()
@@ -175,6 +184,12 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         summary = nil
         errorMessage = nil
         outputURL = nil
+        videoURL = nil
+        videoSummary = nil
+        videoEpochHostTime = nil
+        videoMetrics = ScreenVideoMetrics()
+        audioSaved = false
+        videoSaved = false
         state = .authorizing
         onUpdate?()
         do {
@@ -201,17 +216,52 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 throw AudioWriteError.encoding("没有可用的显示器。")
             }
             let folder = directory ?? FileManager.default.homeDirectoryForCurrentUser
-                .appending(path: "Movies/Scriber/录音", directoryHint: .isDirectory)
+                .appending(path: "Movies/Scriber/\(recordScreen ? "录屏" : "录音")", directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let date = DateFormatter()
             date.locale = Locale(identifier: "en_US_POSIX")
             date.dateFormat = "yyyy-MM-dd HH.mm.ss"
-            let url = folder.appendingPathComponent("录音 \(date.string(from: Date())) \(UUID().uuidString.prefix(4)).m4a")
+            let url = folder.appendingPathComponent("\(recordScreen ? "录屏" : "录音") \(date.string(from: Date())) \(UUID().uuidString.prefix(4)).m4a")
             let sink = try AudioSampleWriter(url: url)
             writer = sink
             outputURL = url
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-            let handler = try MixedAudioOutput(writer: sink, sources: sources)
+            var screen: ScreenVideoOutput?
+            if recordScreen {
+                let videoURL = url.deletingPathExtension().appendingPathExtension("mp4")
+                self.videoURL = videoURL
+                let configuration = SCStreamConfiguration()
+                // Use backing pixels, not scaled desktop points (the built-in display
+                // currently exposes an odd 1117-point height). H.264 needs even dimensions.
+                configuration.width = Int(ceil(filter.contentRect.width * Double(filter.pointPixelScale) / 2)) * 2
+                configuration.height = Int(ceil(filter.contentRect.height * Double(filter.pointPixelScale) / 2)) * 2
+                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+                configuration.pixelFormat = kCVPixelFormatType_32BGRA
+                configuration.queueDepth = 3
+                configuration.showsCursor = true
+                let encoder = try VideoSampleWriter(url: videoURL, width: configuration.width,
+                                                     height: configuration.height, queue: sink.queue)
+                let captureEpoch = CMClockGetTime(CMClockGetHostTimeClock())
+                videoEpochHostTime = captureEpoch.seconds
+                let screenOutput = ScreenVideoOutput(writer: encoder, epoch: captureEpoch)
+                screen = screenOutput
+                videoOutput = screenOutput
+                let capture = SCStream(filter: filter, configuration: configuration, delegate: self)
+                videoStream = capture
+                try capture.addStreamOutput(screenOutput, type: .screen, sampleHandlerQueue: sink.queue)
+                try await capture.startCapture()
+                guard generation == token, state == .authorizing else {
+                    try? await capture.stopCapture()
+                    return
+                }
+            }
+            let handler = try MixedAudioOutput(writer: sink, sources: sources, epoch: screen?.epoch,
+                                               onMixedSample: screen.map { screen in
+                { sample in
+                    // Video failure must not discard a still-writable standalone audio file.
+                    try? screen.writer.appendAudio(sample)
+                }
+            })
             output = handler
             captureFilter = filter
             for source in AudioSource.allCases where sources.contains(source) {
@@ -228,6 +278,15 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                     self.summary = metrics
                     self.captureMetrics = await handler.snapshot()
                     guard self.state == .recording else { return }
+                    if let videoOutput = self.videoOutput {
+                        let (videoSummary, videoError) = await videoOutput.writer.snapshot()
+                        self.videoSummary = videoSummary
+                        self.videoMetrics = await videoOutput.snapshot()
+                        guard self.state == .recording else { return }
+                        if let message = self.videoMetrics.error ?? videoError?.localizedDescription {
+                            await self.stop(error: message); return
+                        }
+                    }
                     self.onUpdate?()
                     if let message = self.captureMetrics.errorMessage { await self.stop(error: message); return }
                     if let error { await self.stop(error: error.localizedDescription); return }
@@ -253,18 +312,28 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         let activeStreams = Array(streams.values)
         streams.removeAll()
         captureFilter = nil
+        if let capture = videoStream {
+            videoStream = nil
+            await videoOutput?.prepareStop()
+            do { try await capture.stopCapture() }
+            catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
+        }
         for capture in activeStreams {
             do { try await capture.stopCapture() }
             catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
         }
+        let captureEnd = videoOutput.map { screen in
+            screen.epoch + (CMClockGetTime(CMClockGetHostTimeClock()) - screen.epoch)
+                .convertScale(48_000, method: .roundTowardZero)
+        }
         if let output {
-            do { try await output.finish() }
+            do { try await output.finish(at: captureEnd) }
             catch { if errorMessage == nil { errorMessage = error.localizedDescription } }
             captureMetrics = await output.snapshot()
         }
         output = nil
         if let writer {
-            do { summary = try await writer.finish() }
+            do { summary = try await writer.finish(); audioSaved = true }
             catch {
                 summary = await writer.snapshot().0
                 if errorMessage == nil { errorMessage = error.localizedDescription }
@@ -273,6 +342,19 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             errorMessage = "采集在音频开始前结束。"
         }
         writer = nil
+        if let videoOutput, let captureEnd {
+            do { videoSummary = try await videoOutput.finish(at: captureEnd); videoSaved = true }
+            catch {
+                videoSummary = await videoOutput.writer.snapshot().0
+                if errorMessage == nil { errorMessage = error.localizedDescription }
+            }
+            videoMetrics = await videoOutput.snapshot()
+        }
+        videoOutput = nil
+        if videoURL != nil, audioSaved != videoSaved {
+            let saved = audioSaved ? "音频已保存，视频未完成。" : "视频已保存，音频未完成。"
+            errorMessage = saved + (errorMessage ?? "")
+        }
         state = errorMessage == nil ? .completed : .failed
         if state == .completed { lastSavedURL = outputURL; lastSavedDuration = elapsedText }
         onUpdate?()
@@ -282,7 +364,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         let identity = ObjectIdentifier(stream)
         let message = Self.captureMessage(error)
         Task { @MainActor [weak self] in
-            guard let self, self.streams.values.contains(where: { ObjectIdentifier($0) == identity }) else { return }
+            guard let self, (self.streams.values.contains(where: { ObjectIdentifier($0) == identity })
+                              || self.videoStream.map({ ObjectIdentifier($0) == identity }) == true) else { return }
             await self.stop(error: message)
         }
     }

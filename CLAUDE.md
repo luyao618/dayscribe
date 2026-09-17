@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-主面板已使用 AudioRecorder，连接双路选择、独立电平、最近保存文件和异步退出；旧 MicrophoneRecorder 已移除。运行中仅更新 captureMicrophone=false 实测仍收到真实麦克风数据，因此改为独立启停两个 SCStream，共用 MixedAudioOutput、AudioPCMConverter、AudioTimelineMixer 和一个 AudioSampleWriter。27 个组件用例及原生构建通过；独立启停已通过双路、单路初始状态及 USB16kHz 实测，AppKit 退出保存通过。SIGTERM 使用 RunLoop.perform 进入 AppKit，避免主队列嵌套退出死锁。原生桌面点击验收仍待完成。design/ 仍是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
+主面板使用 AudioRecorder，真实双路选择、电平、最近文件和异步退出已通过内置/USB实测。每个声音源独立 SCStream，避免 captureMicrophone=false 后仍采集麦克风。全屏录制已在 --display-video-check 测试入口打通：ScreenVideoOutput + VideoSampleWriter 生成有声音的 MP4，同一混音 PCM 写入独立 M4A，使用公共 host-clock 起点和48k终点；Retina尺寸取 SCK contentRect×pointPixelScale。声音切换、双路/单路/USB录屏及 AppKit 退出通过。32 个组件用例及原生构建通过。原生桌面点击验收仍待完成，正式录屏入口在范围选择实现后接入。design/ 是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
 
 ## 约定
 

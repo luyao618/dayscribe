@@ -48,7 +48,7 @@ struct AudioSampleWriterTests {
         #expect(abs(Double(summary.powerDBFS) - 20 * log10(expectedRMS)) < 1)
         let recorded = AVURLAsset(url: summary.url)
         let duration = try await recorded.load(.duration)
-        #expect(duration.seconds > 0.95 && duration.seconds < 1.05)
+        #expect(abs(duration.seconds - summary.duration) < 1.0 / 48_000)
         let recordedTrack = try #require(try await recorded.loadTracks(withMediaType: .audio).first)
         let decoder = try AVAssetReader(asset: recorded)
         let decoded = AVAssetReaderTrackOutput(track: recordedTrack, outputSettings: [

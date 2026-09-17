@@ -24,13 +24,19 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private var sources: Set<AudioSource>
     private let mixer: AudioTimelineMixer
     private var epoch: CMTime?
+    private let requestedEpoch: CMTime?
+    private let onMixedSample: ((CMSampleBuffer) -> Void)?
     private var startup: [(source: AudioSource, sample: CMSampleBuffer)] = []
     private var startupBytes = 0
     private var segments: [AudioSource: ConvertedSegment] = [:]
     private var metrics = AudioCaptureMetrics()
     private var closed = false
 
-    init(writer: AudioSampleWriter, sources: Set<AudioSource>) throws {
+    init(writer: AudioSampleWriter, sources: Set<AudioSource>, epoch: CMTime? = nil,
+         onMixedSample: ((CMSampleBuffer) -> Void)? = nil) throws {
+        guard epoch.map({ $0.isNumeric && $0.seconds.isFinite }) ?? true else { throw AudioMixError.invalidTimeline }
+        self.requestedEpoch = epoch
+        self.onMixedSample = onMixedSample
         self.writer = writer
         self.sources = sources
         self.mixer = try AudioTimelineMixer(sources: sources)
@@ -76,7 +82,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                 guard startupBytes <= 8 * 1_024 * 1_024, startup.count <= 256,
                       (time - first).seconds <= 2 else { throw AudioMixError.bufferOverflow }
                 guard sources.allSatisfy({ metrics.firstTimes[$0] != nil }) else { return }
-                epoch = first
+                epoch = requestedEpoch ?? first
                 let ordered = startup.sorted { CMTimeCompare($0.sample.presentationTimeStamp, $1.sample.presentationTimeStamp) < 0 }
                 startup.removeAll()
                 startupBytes = 0
@@ -134,7 +140,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     }
 
     /// Stop SCStream first, then finish converters and mixer before the encoder.
-    func finish() async throws {
+    func finish(at hostTime: CMTime? = nil) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
             writer.queue.async {
                 defer { self.closed = true; self.startup.removeAll(); self.segments.removeAll() }
@@ -147,7 +153,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                             try self.push(try segment.converter.finish(), segment: segment, source: source)
                         }
                     }
-                    try self.mixer.finish(emit: self.emit)
+                    try self.mixer.finish(at: try hostTime.map { try self.frame($0) }, emit: self.emit)
                     continuation.resume()
                 } catch {
                     if self.metrics.errorMessage == nil { self.metrics.errorMessage = error.localizedDescription }
@@ -197,6 +203,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private func emit(_ block: MixedAudioBlock) throws {
         let sample = try Self.sample(stereo: block.stereo, at: block.startFrame)
         try writer.appendChecked(sample)
+        onMixedSample?(sample)
         metrics.powerDBFS[.system] = block.systemPowerDBFS
         metrics.powerDBFS[.microphone] = block.microphonePowerDBFS
         for source in AudioSource.allCases {

@@ -12,6 +12,7 @@ final class SystemAudioDiagnostic {
     private let microphoneDeviceID: String?
     private let switchSources: Bool
     private let panelSnapshots: Bool
+    private let recordScreen: Bool
     private var switching: Task<Void, Never>?
     private var sourceEvents: [[String: Any]] = []
     private var trace: [[String: Any]] = []
@@ -25,6 +26,7 @@ final class SystemAudioDiagnostic {
 
     init(directory: URL, seconds: Double, sources: Set<AudioSource> = [.system],
          microphoneDeviceID: String? = nil, switchSources: Bool = false, panelSnapshots: Bool = false,
+         recordScreen: Bool = false,
          onStatus: @escaping (String) -> Void,
          onFinished: @escaping () -> Void) {
         self.directory = directory
@@ -33,6 +35,7 @@ final class SystemAudioDiagnostic {
         self.microphoneDeviceID = microphoneDeviceID
         self.switchSources = switchSources
         self.panelSnapshots = panelSnapshots
+        self.recordScreen = recordScreen
         self.onStatus = onStatus
         self.onFinished = onFinished
     }
@@ -41,7 +44,7 @@ final class SystemAudioDiagnostic {
         recorder.onUpdate = { [weak self] in self?.publish() }
         timer = Task { [weak self] in
             guard let self else { return }
-            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID)
+            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID, recordScreen: recordScreen)
             guard recorder.state == .recording, !Task.isCancelled else { return }
             if switchSources {
                 switching = Task { [weak self] in
@@ -101,6 +104,15 @@ final class SystemAudioDiagnostic {
             "status": status,
             "pid": ProcessInfo.processInfo.processIdentifier,
             "path": recorder.outputURL?.path ?? "",
+            "audioSaved": recorder.audioSaved,
+            "videoSaved": recorder.videoSaved,
+            "videoPath": recorder.videoURL?.path ?? "",
+            "videoFrames": recorder.videoSummary?.videoFrames ?? 0,
+            "videoEpochHostTime": recorder.videoEpochHostTime ?? 0,
+            "videoDurationSeconds": recorder.videoSummary?.duration ?? 0,
+            "screenReceivedFrames": recorder.videoMetrics.receivedFrames,
+            "screenFirstHostTime": recorder.videoMetrics.firstHostTime ?? 0,
+            "screenLastHostTime": recorder.videoMetrics.lastHostTime ?? 0,
             "error": recorder.errorMessage ?? "",
             "frames": recorder.summary?.frames ?? 0,
             "durationSeconds": recorder.summary?.duration ?? 0,

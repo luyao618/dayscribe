@@ -19,7 +19,7 @@ struct SystemAudioCheckPanel: View {
             if let error = recorder.errorMessage {
                 Text(error).foregroundStyle(.red).font(.system(size: 11))
             }
-            Text("本检查保存一份音频，不保存屏幕画面。")
+            Text(recorder.videoURL == nil ? "本检查保存一份音频，不保存屏幕画面。" : "正在检查全屏录制 · MP4 视频 + M4A 音频")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             Button("停止检查", action: onStop).disabled(!recorder.state.active)
                 .buttonStyle(.borderedProminent)
