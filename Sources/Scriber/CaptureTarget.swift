@@ -1,11 +1,33 @@
 import ScreenCaptureKit
 
+enum CaptureKind: String, CaseIterable {
+    case region, window, display
+    var title: String { switch self { case .region: "自选区域"; case .window: "单个窗口"; case .display: "整块屏幕" } }
+    var symbol: String { switch self { case .region: "viewfinder"; case .window: "macwindow"; case .display: "display" } }
+}
+
+// ScreenCaptureKit delivers this filter once. Treat it as immutable during the
+// delegate-to-main-actor handoff; all later filter use is confined to the main actor.
+final class PickedCaptureFilter: @unchecked Sendable {
+    let filter: SCContentFilter
+    init(_ filter: SCContentFilter) { self.filter = filter }
+}
+
 /// Regions use top-left, display-local points; microphone/system capture stays global.
-enum CaptureRequest {
+enum CaptureRequest: Sendable {
     case display(CGDirectDisplayID)
     case window(CGWindowID)
     case region(display: CGDirectDisplayID, rect: CGRect)
-    case selectedFilter(SCContentFilter, title: String)
+    case selectedFilter(PickedCaptureFilter, title: String)
+
+    var kind: CaptureKind {
+        switch self {
+        case .region: .region
+        case .window: .window
+        case .display: .display
+        case .selectedFilter(let selection, _): selection.filter.style == .window ? .window : .display
+        }
+    }
 
     static func diagnostic(arguments: [String]) throws -> CaptureRequest? {
         func value(_ flag: String) throws -> String? {
@@ -47,6 +69,13 @@ enum CaptureTargetError: LocalizedError {
 }
 
 struct CaptureGeometry {
+    static func drag(from start: CGPoint, to end: CGPoint, within bounds: CGRect) -> CGRect? {
+        guard [start.x, start.y, end.x, end.y].allSatisfy(\.isFinite) else { return nil }
+        let rect = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                          width: abs(end.x - start.x), height: abs(end.y - start.y)).intersection(bounds)
+        return !rect.isNull && rect.width >= 2 && rect.height >= 2 ? rect : nil
+    }
+
     static func region(_ rect: CGRect, within size: CGSize) throws -> CGRect {
         guard [rect.minX, rect.minY, rect.width, rect.height, size.width, size.height].allSatisfy(\.isFinite),
               rect.width > 0, rect.height > 0, size.width > 0, size.height > 0 else { throw CaptureTargetError.invalidRegion }
@@ -79,7 +108,9 @@ struct CaptureTarget {
     static func resolve(_ request: CaptureRequest, content: SCShareableContent) throws -> CaptureTarget {
         switch request {
         case .selectedFilter(let filter, let title):
-            return CaptureTarget(filter: filter, sourceRect: nil, title: title)
+            let windowTitle = filter.filter.style == .window ? filter.filter.includedWindows.first?.title : nil
+            return CaptureTarget(filter: filter.filter, sourceRect: nil,
+                                 title: windowTitle.flatMap { $0.isEmpty ? nil : $0 } ?? title)
         case .window(let id):
             guard let window = content.windows.first(where: { $0.windowID == id }) else { throw CaptureTargetError.unavailable }
             let title = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? window.owningApplication?.applicationName ?? "所选窗口"

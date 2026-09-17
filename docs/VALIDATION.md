@@ -164,6 +164,30 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Actual independent-window recording of the test fixture](screenshots/captured-window-fixture.png)
 
+## Native range selector and video panel — 2026-09-17
+
+- The approved panel now starts video through its range choice. Single window/display use SCContentSharingPicker; region mode opens an overlay per display, shows backing-pixel dimensions, confirms with Return/keypad Enter or the start button, and cancels with Escape. Mode/range lock during recording; source toggles remain live. The panel shows actual video time, filename, target, source levels and save state, and recent recording references the paired files.
+- All 36 component cases (24 functions), native build/signature and self-review pass. Synthetic events on our unattached overlay view verify clipping and input logic; they remain separate from the actual GUI checks below. A prior automatic panel capture (artifacts/system-audio-check-dxxln4o4) also passed with 8.388208s /402634 identical decoded audio samples.
+- After macOS preflight reported Accessibility and screen capture authorized for the responsible ChatGPT host, the agent performed native GUI validation using scoped AX snapshots/actions, System Events keys, authorized HID mouse input and window screenshots. The unavailable CUA connection did not require the user to perform the tests. Evidence is retained under artifacts/gui-validation; raw recordings stay local.
+- Actual menu-bar opening and audio/video mode switching resize the content from390×631pt to390×678pt. Range and settings popovers open and their controls work. Escape cancels region selection; the OS picker's Cancel returns without starting another recording.
+- The first real drag on a non-key display initially only activated its overlay; a second drag selected correctly. Added acceptsFirstMouse so selection begins on the first drag. The fixed build passed a **first** native drag from(200,200) to(680,500), Return start, locked range controls, and UI Stop, producing the expected960×600 picture. This defect was not detected by direct synthetic view events.
+
+| Actual GUI flow | Recorded duration / audio frames | Local evidence |
+|---|---|---|
+| Fixed first region drag → Return → Stop | 3.481229s /167099 | gui-validation/region-native-result.json |
+| OS Share “Scriber Capture Fixture” Window → live source changes → Stop | 3.139354s /150689 | gui-validation/native-window-result.json |
+| OS Share Built-in Retina Display → close/reopen panel → Stop | 73.700333s /3537616 | gui-validation/native-display-result.json |
+| Audio Start → Stop | 2.390875s /114762 | gui-validation/native-audio-result.json |
+| OS display choice → Settings → Quit while recording | 3.356271s /161101 | gui-validation/native-active-quit-result.json |
+
+- Every listed video produced fully decoded MP4/M4A files with exactly matching decoded audio and submitted frame counts. The window file was960×600 with the expected four fixture colors, proving the native picker selected that window. Display capture was3456×2234. Audio mode produced only M4A. Closing/reopening the panel preserved recording and advancing frame counts.
+- During the actual window recording, disabling/re-enabling the microphone updated the checkbox and capture selection. Attempting to disable the remaining computer source preserved it and displayed the last-source warning. Both sources were restored afterward.
+- Actual Settings→Quit finalized both video/audio and exited. The earlier idle Quit caused AXPress to return cannotComplete because the process had already exited; process disappearance verified the successful action. A direct CGEvent postToPid key attempt did not prove delivery and was replaced by System Events for keyboard tests. An initial recording with uncontrolled input was excluded from agent-controlled selection evidence. A screenshot timing exception delayed the display test's stop, so its actual73.7s duration is reported above, not a claimed3s test.
+- The real saved-panel screenshot below was captured from the native window and visually checked against the approved layout. The fixture was closed and the tested app exited. Filename/path/history editing, global shortcut, device transitions, recovery and long-duration tests remain separate work.
+
+![Actual native saved panel, desktop window capture](screenshots/native-panel-gui.png)
+![Ready native video panel, offscreen render](screenshots/native-video-ready.png)
+
 ## Remaining acceptance
 
-Native window/display chooser, region-drag UI and normal video action, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+Editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.

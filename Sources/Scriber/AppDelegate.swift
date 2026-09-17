@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let recorder = AudioRecorder(defaults: .standard)
+    private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
     private var terminationSignal: DispatchSourceSignal?
     private var systemCheck: SystemAudioDiagnostic?
@@ -28,10 +29,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.action = #selector(togglePanel)
         statusItem = item
 
+        capturePicker.onChange = { [weak self] in self?.writeUIReport() }
         popover.behavior = .transient
-        installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() }))
+        installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() },
+                                   onStartVideo: { [weak self] kind in await self?.startVideo(kind) }))
         recorder.onUpdate = { [weak self] in
-            guard let self, self.systemCheck == nil, self.terminationDeferred, !self.recorder.state.active else { return }
+            guard let self else { return }
+            self.writeUIReport()
+            guard self.systemCheck == nil, self.terminationDeferred, !self.recorder.state.active else { return }
             self.terminationDeferred = false
             DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
         }
@@ -58,10 +63,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         signalSource.resume()
         terminationSignal = signalSource
 
+        writeUIReport()
         startCheckIfRequested()
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
         }
+    }
+
+    /// Optional local evidence for manual GUI validation; never enabled in normal launches.
+    private func writeUIReport() {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--ui-validation-report"), args.indices.contains(index + 1),
+              args[index + 1].hasPrefix("/") else { return }
+        let report: [String: Any] = [
+            "pid": ProcessInfo.processInfo.processIdentifier,
+            "state": capturePicker.isChoosing ? "selecting" : recorder.state.rawValue,
+            "selectionKind": capturePicker.kind.rawValue,
+            "selectionOutcome": capturePicker.lastOutcome,
+            "audioPath": recorder.outputURL?.path ?? "",
+            "videoPath": recorder.videoURL?.path ?? "",
+            "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
+            "frames": recorder.summary?.frames ?? 0,
+            "duration": recorder.summary?.duration ?? 0,
+            "sources": recorder.sources.map { $0.rawValue }.sorted(),
+            "error": recorder.controlMessage ?? recorder.errorMessage ?? ""
+        ]
+        do {
+            let url = URL(fileURLWithPath: args[index + 1])
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+                .write(to: url, options: .atomic)
+        } catch { NSLog("UI validation report failed: %@", error.localizedDescription) }
     }
 
     private func writePermissionCheckIfRequested() -> Bool {
@@ -85,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        capturePicker.cancel()
         if let systemCheck, systemCheck.recorder.state.active {
             terminationDeferred = true
             Task { await systemCheck.stop() }
@@ -134,14 +167,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 })
             systemCheck = check
-            if arguments.contains("--panel-audio-check") || arguments.contains("--microphone-check") {
-                installPanel(RecorderPanel(recorder: check.recorder, onQuit: { [weak self] in self?.requestQuit() }))
+            if arguments.contains("--panel-audio-check") || arguments.contains("--microphone-check") || arguments.contains("--panel-snapshots") {
+                installPanel(RecorderPanel(recorder: check.recorder,
+                    mode: arguments.contains("--display-video-check") ? .video : .audio,
+                    onQuit: { [weak self] in self?.requestQuit() }, captureKind: captureRequest?.kind ?? .display))
             } else {
                 installPanel(SystemAudioCheckPanel(recorder: check.recorder, onStop: { [weak self] in self?.requestQuit() }))
             }
             check.start()
             return
         }
+    }
+
+    private func startVideo(_ kind: CaptureKind) async {
+        guard !recorder.state.active else { return }
+        recorder.reportControlMessage(nil)
+        popover.performClose(nil)
+        do {
+            if let request = try await capturePicker.choose(kind) {
+                await recorder.start(captureRequest: request)
+            }
+        } catch { recorder.reportControlMessage(error.localizedDescription) }
+        writeUIReport()
+        showPanel()
     }
 
     private func requestQuit() {
