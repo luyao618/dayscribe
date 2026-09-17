@@ -132,7 +132,10 @@ final class VideoSampleWriter: @unchecked Sendable {
 
     func snapshot() async -> (VideoWriteSummary, VideoWriteError?) {
         await withCheckedContinuation { continuation in
-            queue.async { continuation.resume(returning: (self.summary, self.failure)) }
+            queue.async {
+                self.failure = self.failure ?? self.encoderFailure
+                continuation.resume(returning: (self.summary, self.failure))
+            }
         }
     }
 
@@ -186,7 +189,10 @@ final class VideoSampleWriter: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(queue))
         guard !closing else { throw VideoWriteError.finished }
         if let failure { throw failure }
-        do { try action() }
+        do {
+            if let error = encoderFailure { throw error }
+            try action()
+        }
         catch {
             let error = error as? VideoWriteError ?? .encoding(error.localizedDescription)
             failure = error
@@ -195,11 +201,15 @@ final class VideoSampleWriter: @unchecked Sendable {
     }
 
     private func append(_ sample: CMSampleBuffer, to input: AVAssetWriterInput) throws {
-        guard input.isReadyForMoreMediaData else { throw VideoWriteError.backpressure }
+        guard input.isReadyForMoreMediaData else { throw encoderFailure ?? .backpressure }
         guard input.append(sample) else {
             throw VideoWriteError.encoding(writer.error?.localizedDescription ?? "无法写入数据")
         }
     }
 
     private func valid(_ time: CMTime) -> Bool { time.isNumeric && time.seconds.isFinite }
+
+    private var encoderFailure: VideoWriteError? {
+        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? "视频写入已失败") : nil
+    }
 }
