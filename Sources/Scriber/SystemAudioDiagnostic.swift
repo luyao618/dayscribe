@@ -14,6 +14,9 @@ final class SystemAudioDiagnostic {
     private let panelSnapshots: Bool
     private let recordScreen: Bool
     private let captureRequest: CaptureRequest?
+    private let renameCheck: Bool
+    private var renaming: Task<Void, Never>?
+    private var renameEvent: [String: Any] = [:]
     private var switching: Task<Void, Never>?
     private var sourceEvents: [[String: Any]] = []
     private var trace: [[String: Any]] = []
@@ -27,7 +30,7 @@ final class SystemAudioDiagnostic {
 
     init(directory: URL, seconds: Double, sources: Set<AudioSource> = [.system],
          microphoneDeviceID: String? = nil, switchSources: Bool = false, panelSnapshots: Bool = false,
-         recordScreen: Bool = false, captureRequest: CaptureRequest? = nil,
+         recordScreen: Bool = false, captureRequest: CaptureRequest? = nil, renameCheck: Bool = false,
          onStatus: @escaping (String) -> Void,
          onFinished: @escaping () -> Void) {
         self.directory = directory
@@ -38,6 +41,7 @@ final class SystemAudioDiagnostic {
         self.panelSnapshots = panelSnapshots
         self.recordScreen = recordScreen
         self.captureRequest = captureRequest
+        self.renameCheck = renameCheck
         self.onStatus = onStatus
         self.onFinished = onFinished
     }
@@ -46,8 +50,23 @@ final class SystemAudioDiagnostic {
         recorder.onUpdate = { [weak self] in self?.publish() }
         timer = Task { [weak self] in
             guard let self else { return }
-            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID, recordScreen: recordScreen, captureRequest: captureRequest)
+            await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID,
+                                 recordScreen: recordScreen, captureRequest: captureRequest, title: renameCheck ? "改名前" : nil)
             guard recorder.state == .recording, !Task.isCancelled else { return }
+            if renameCheck {
+                renaming = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    guard let self, self.recorder.isRecording else { return }
+                    let previousPath = self.recorder.outputURL?.path ?? ""
+                    let previousTitle = self.recorder.recordingTitle
+                    let invalidAccepted = self.recorder.setRecordingTitle("../outside")
+                    let applied = self.recorder.setRecordingTitle("录制中改名 Café")
+                    self.renameEvent = ["previousPath": previousPath, "pathAfterRename": self.recorder.outputURL?.path ?? "",
+                                        "previousTitle": previousTitle, "title": self.recorder.recordingTitle,
+                                        "applied": applied, "invalidAccepted": invalidAccepted,
+                                        "frames": self.recorder.summary?.frames ?? 0]
+                }
+            }
             if switchSources {
                 switching = Task { [weak self] in
                     guard let self else { return }
@@ -72,6 +91,7 @@ final class SystemAudioDiagnostic {
     func stop() async {
         timer?.cancel()
         switching?.cancel()
+        renaming?.cancel()
         await recorder.stop(interrupted: true)
     }
 
@@ -106,6 +126,9 @@ final class SystemAudioDiagnostic {
             "status": status,
             "pid": ProcessInfo.processInfo.processIdentifier,
             "path": recorder.outputURL?.path ?? "",
+            "recordingTitle": recorder.recordingTitle,
+            "recordingDirectory": recorder.recordingDirectory?.path ?? "",
+            "renameEvent": renameEvent,
             "audioSaved": recorder.audioSaved,
             "videoSaved": recorder.videoSaved,
             "videoPath": recorder.videoURL?.path ?? "",
@@ -149,6 +172,7 @@ final class SystemAudioDiagnostic {
             sentCompletion = true
             timer?.cancel()
             switching?.cancel()
+            renaming?.cancel()
             timer = nil
             onFinished()
         }

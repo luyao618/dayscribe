@@ -82,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "selectionOutcome": capturePicker.lastOutcome,
             "audioPath": recorder.outputURL?.path ?? "",
             "videoPath": recorder.videoURL?.path ?? "",
+            "recordingTitle": recorder.recordingTitle,
+            "recordingDirectory": recorder.recordingDirectory?.path ?? "",
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
@@ -157,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switchSources: arguments.contains("--switch-sources"),
                 panelSnapshots: arguments.contains("--panel-snapshots"),
                 recordScreen: arguments.contains("--display-video-check"), captureRequest: captureRequest,
+                renameCheck: arguments.contains("--rename-check"),
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {

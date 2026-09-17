@@ -27,8 +27,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var isChangingSources = false
     @Published private(set) var controlMessage: String?
     @Published private(set) var lastSavedURL: URL?
+    @Published private(set) var lastSavedFiles: [URL] = []
     @Published private(set) var lastSavedDuration = ""
     @Published private(set) var microphoneName = "默认麦克风"
+    @Published private(set) var recordingTitle = ""
+    private(set) var recordingDirectory: URL?
     private(set) var outputURL: URL?
     private(set) var videoURL: URL?
     private(set) var videoSummary: VideoWriteSummary?
@@ -50,6 +53,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var captureFilter: SCContentFilter?
     private var microphoneDeviceID: String?
     private let defaults: UserDefaults?
+    private var sessionFiles: RecordingSessionFiles?
 
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
@@ -85,6 +89,21 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func reportControlMessage(_ message: String?) { controlMessage = message }
+
+    /// Only changes the desired final basename; open encoder URLs never move.
+    @discardableResult
+    func setRecordingTitle(_ title: String) -> Bool {
+        guard isRecording else { controlMessage = "当前无法修改录制名称。"; return false }
+        do {
+            recordingTitle = try RecordingFilename.validated(title)
+            controlMessage = nil
+            onUpdate?()
+            return true
+        } catch {
+            controlMessage = error.localizedDescription
+            return false
+        }
+    }
 
     @discardableResult
     func setSources(_ selected: Set<AudioSource>) async -> Bool {
@@ -173,7 +192,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil,
-               recordScreen recordVideo: Bool = false, captureRequest: CaptureRequest? = nil) async {
+               recordScreen recordVideo: Bool = false, captureRequest: CaptureRequest? = nil, title: String? = nil) async {
         let recordScreen = recordVideo || captureRequest != nil
         guard !state.active else { return }
         let sources = selection ?? self.sources
@@ -189,6 +208,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         errorMessage = nil
         outputURL = nil
         videoURL = nil
+        recordingTitle = ""
+        recordingDirectory = nil
+        sessionFiles = nil
         videoSummary = nil
         videoEpochHostTime = nil
         captureTargetTitle = ""
@@ -199,6 +221,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         onUpdate?()
         do {
             guard !sources.isEmpty else { throw AudioMixError.invalidConfiguration }
+            let date = DateFormatter()
+            date.locale = Locale(identifier: "en_US_POSIX")
+            date.dateFormat = "yyyy-MM-dd HH.mm.ss"
+            recordingTitle = try RecordingFilename.validated(title ?? "\(recordScreen ? "录屏" : "录音") \(date.string(from: Date()))")
             if sources.contains(.microphone) {
                 let authorized: Bool
                 switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -222,18 +248,21 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
             let folder = directory ?? FileManager.default.homeDirectoryForCurrentUser
                 .appending(path: "Movies/Scriber/\(recordScreen ? "录屏" : "录音")", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let date = DateFormatter()
-            date.locale = Locale(identifier: "en_US_POSIX")
-            date.dateFormat = "yyyy-MM-dd HH.mm.ss"
-            let url = folder.appendingPathComponent("\(recordScreen ? "录屏" : "录音") \(date.string(from: Date())) \(UUID().uuidString.prefix(4)).m4a")
+            let desiredTitle = recordingTitle
+            let session = try await Task.detached {
+                try RecordingSessionFiles.create(directory: folder, title: desiredTitle, video: recordScreen)
+            }.value
+            guard generation == token, state == .authorizing else { return }
+            sessionFiles = session
+            recordingDirectory = session.directory
+            let url = session.files.urls[.audio]!
             let sink = try AudioSampleWriter(url: url)
             writer = sink
             outputURL = url
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             var screen: ScreenVideoOutput?
             if recordScreen {
-                let videoURL = url.deletingPathExtension().appendingPathExtension("mp4")
+                let videoURL = session.files.urls[.video]!
                 self.videoURL = videoURL
                 let target = try CaptureTarget.resolve(captureRequest ?? .display(display.displayID), content: content)
                 captureTargetTitle = target.title
@@ -350,12 +379,39 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             videoMetrics = await videoOutput.snapshot()
         }
         videoOutput = nil
+        if let sessionFiles {
+            let title = recordingTitle
+            var closed = Set<RecordingFileKind>()
+            if audioSaved { closed.insert(.audio) }
+            if videoSaved { closed.insert(.video) }
+            let finished = await Task.detached { sessionFiles.finalize(title: title, closed: closed) }.value
+            outputURL = finished.files.urls[.audio]
+            videoURL = finished.files.urls[.video]
+            recordingTitle = finished.title
+            audioSaved = finished.published.contains(.audio)
+            videoSaved = finished.published.contains(.video)
+            if let summary, let outputURL {
+                self.summary = .init(url: outputURL, frames: summary.frames, duration: summary.duration,
+                                     powerDBFS: summary.powerDBFS, peakDBFS: summary.peakDBFS)
+            }
+            if let videoSummary, let videoURL {
+                self.videoSummary = .init(url: videoURL, videoFrames: videoSummary.videoFrames,
+                                          audioFrames: videoSummary.audioFrames, duration: videoSummary.duration)
+            }
+            if let message = finished.errorMessage {
+                errorMessage = [errorMessage, message].compactMap { $0 }.joined(separator: "\n")
+            }
+        }
         if videoURL != nil, audioSaved != videoSaved {
             let saved = audioSaved ? "音频已保存，视频未完成。" : "视频已保存，音频未完成。"
             errorMessage = saved + (errorMessage ?? "")
         }
         state = errorMessage == nil ? .completed : .failed
-        if state == .completed { lastSavedURL = videoURL ?? outputURL; lastSavedDuration = elapsedText }
+        if audioSaved || videoSaved {
+            lastSavedURL = videoSaved ? videoURL : outputURL
+            lastSavedFiles = [(videoSaved ? videoURL : nil), (audioSaved ? outputURL : nil)].compactMap { $0 }
+            lastSavedDuration = elapsedText
+        }
         onUpdate?()
     }
 

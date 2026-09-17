@@ -195,6 +195,25 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 - Existing generated-codec cases now relocate their closed outputs before decoding. Four audio variants retain duration/decoded samples; three MP4/M4A variants retain H.264/AAC, picture timing and matching tone onset after paired relocation. All **43 component cases (31 functions)** pass. Local evidence: `artifacts/file-set-tests.log`.
 - This increment is the tested file-operation primitive. The recorder still uses its existing output paths until the next session/UI integration PR; no filename/path controls or crash recovery are claimed here. Pair movement is not an atomic filesystem transaction, and cross-volume moves deliberately fail without copying/deleting. Session staging must be created on the destination volume.
 
+## Real recorder session files — 2026-09-17
+
+- The recorder now creates a private UUID staging directory on the chosen destination volume and keeps encoder URLs fixed. A desired title is supplied before capture or changed during recording. Stop freezes that title, closes the encoders, then uses the exclusive relocation primitive; final audio/video summary URLs and recent-file Finder targets reflect the actual result. A partial save lists only successfully published files and retains unfinished media. The panel keeps showing the desired title and destination, with its approved layout unchanged.
+- Each session retains a small atomically written `session.json` with its ID, start time, title, actual paths, closed/published members and finalization error. Filesystem work runs outside the main actor and media queue. This descriptor does **not** yet provide crash recovery: abrupt termination during encoding or paired relocation is still part of the later recovery increment. In-flight name changes currently become durable at finalization.
+- Four new session cases cover paired collision suffixes and manifest round trip; publishing only the closed member while retaining incomplete media; manifest-write failure retaining closed files in staging; and rejecting an invalid initial title before permissions/capture/filesystem creation. All **47 component cases (35 functions)**, native build/signature, Python syntax and self-review pass (`artifacts/session-files-tests.log`, `session-files-build.log`).
+
+| Real capture with a title change during recording | Duration / decoded audio frames | Local evidence |
+|---|---|---|
+| Built-in microphone + system sound, one M4A | 8.1618125s /391767 | system-audio-check-_f4tw_pf |
+| Owned fixture window, 960×600 MP4 + M4A | 8.206625s /393918 | system-audio-check-ev5uuayq |
+| Region video, 640×480, AppKit quit during capture | 5.441875000s /261210 | system-audio-check-99z2aq8r |
+
+- Each run rejects `../outside`, applies “录制中改名 Café” while frames are arriving, proves the open writer path stays unchanged, and verifies the final media/manifest paths after stop. Audio signals, ordered test tones, full media decode, paired audio equality and process exit pass. These are real ScreenCaptureKit runs with a diagnostic name-change action, **not** clicks on an editable filename field; the UI editing controls follow separately.
+- The first audio attempt (`system-audio-check-_c1thner`) completed 8.149416667s but the Python harness stopped before decode because Foundation returned the path name in decomposed Unicode. The harness now compares the basename after NFC normalization, matching Swift String's canonical comparison; the full recording/decode was rerun successfully. No audio thresholds were relaxed.
+- The following images are offscreen native panel renders from the real renamed recording and saved video states, visually checked for title/destination and recent pair display. They are not evidence of a GUI rename action. Raw media remains local.
+
+![Live native audio panel after recorder name change](screenshots/native-session-recording.png)
+![Native saved video panel after recorder name change](screenshots/native-session-saved.png)
+
 ## Remaining acceptance
 
 Editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
