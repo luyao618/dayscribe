@@ -7,15 +7,15 @@ struct RecordingPlaybackTests {
         let fixture = try await Fixture()
         defer { fixture.remove() }
         let model = RecordingPlaybackModel(store: fixture.store)
-        model.player.isMuted = true // Component check only; native playback is checked separately.
+        model.player.volume = 0 // Silence tests without disabling the output render clock via isMuted.
         defer { model.close() }
         await model.open(fixture.session.id).value
-        try await wait { model.canPlay }
+        try await wait("load", model: model) { model.canPlay }
         #expect(!model.isPlaying && model.position == 0 && abs(model.duration - 4) < 0.1)
         model.seek(to: 1.2)
-        try await wait { !model.isSeeking && abs(model.position - 1.2) < 0.05 }
+        try await wait("seek", model: model) { !model.isSeeking && abs(model.position - 1.2) < 0.05 }
         await model.togglePlayback()
-        try await wait { model.position > 1.5 && model.isPlaying }
+        try await wait("playing clock", model: model) { model.position > 1.5 && model.isPlaying }
         model.pause()
         let stopped = model.player.currentTime().seconds
         try await Task.sleep(for: .milliseconds(200))
@@ -25,7 +25,7 @@ struct RecordingPlaybackTests {
         #expect(!model.isPlaying)
         model.resume()
         await model.togglePlayback()
-        try await wait { model.isPlaying }
+        try await wait("resume", model: model) { model.isPlaying }
         model.close()
         #expect(model.player.currentItem == nil && model.entry == nil && !model.isPlaying)
     }
@@ -34,10 +34,10 @@ struct RecordingPlaybackTests {
         let fixture = try await Fixture()
         defer { fixture.remove() }
         let model = RecordingPlaybackModel(store: fixture.store)
-        model.player.isMuted = true
+        model.player.volume = 0
         defer { model.close() }
         await model.open(fixture.session.id).value
-        try await wait { model.canPlay }
+        try await wait("load", model: model) { model.canPlay }
         try FileManager.default.removeItem(at: fixture.url)
         await model.togglePlayback()
         #expect(!model.isPlaying && model.errorMessage != nil)
@@ -53,7 +53,7 @@ struct RecordingPlaybackTests {
         let fixture = try await Fixture()
         defer { fixture.remove() }
         let model = RecordingPlaybackModel(store: fixture.store)
-        model.player.isMuted = true
+        model.player.volume = 0
         defer { model.close() }
         let pending = model.open(fixture.session.id)
         model.close()
@@ -64,12 +64,12 @@ struct RecordingPlaybackTests {
         #expect(model.errorMessage != nil && !model.isPlaying && !model.isLoading)
     }
 
-    @MainActor private func wait(_ condition: () -> Bool) async throws {
+    @MainActor private func wait(_ stage: String, model: RecordingPlaybackModel, _ condition: () -> Bool) async throws {
         for _ in 0..<100 {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(50))
         }
-        Issue.record("AVPlayer did not reach the expected state")
+        Issue.record("AVPlayer wait failed at \(stage): position=\(model.position), actual=\(model.player.currentTime().seconds), duration=\(model.duration), loading=\(model.isLoading), seeking=\(model.isSeeking), playing=\(model.isPlaying), rate=\(model.player.rate), item=\(String(describing: model.player.currentItem?.status)), control=\(model.player.timeControlStatus.rawValue), error=\(model.errorMessage ?? "none")")
         throw CocoaError(.fileReadUnknown)
     }
 

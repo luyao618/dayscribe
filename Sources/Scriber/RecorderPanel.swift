@@ -3,12 +3,14 @@ import SwiftUI
 
 extension Notification.Name {
     static let scriberPanelClosing = Notification.Name("scriber.panelClosing")
+    static let scriberShowRecorder = Notification.Name("scriber.showRecorder")
 }
 
 struct RecorderPanel: View {
     @ObservedObject var recorder: AudioRecorder
     @ObservedObject var history = RecordingHistoryModel()
     @ObservedObject var playback = RecordingPlaybackModel()
+    @ObservedObject var shortcut = GlobalPanelShortcut()
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
@@ -29,10 +31,13 @@ struct RecorderPanel: View {
     @State private var showsHistory = false
     @State private var detailID: UUID?
     @State private var historyQuery = ""
+    @State private var showsShortcut = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if detailID != nil {
+            if showsShortcut {
+                ShortcutSettingsPanel(shortcut: shortcut, onBack: { showsShortcut = false })
+            } else if detailID != nil {
                 RecordingDetailPanel(playback: playback, onBack: { detailID = nil; showsHistory = true },
                                      onReveal: { onRevealHistory?($0, $1) },
                                      allowsRename: !(recorder.sessionID == detailID && recorder.state.active),
@@ -52,7 +57,7 @@ struct RecorderPanel: View {
                     if mode == .video { captureTarget }
                     sources
                     destination
-                    if let error = recorder.controlMessage ?? recorder.errorMessage {
+                    if let error = recorder.controlMessage ?? recorder.errorMessage ?? shortcut.errorMessage {
                         Text(error)
                             .font(.system(size: 11))
                             .foregroundStyle(PanelPalette.record)
@@ -78,6 +83,17 @@ struct RecorderPanel: View {
         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.7)))
         .onReceive(NotificationCenter.default.publisher(for: .scriberPanelClosing)) { _ in
             // A transient NSPopover consumes Escape before the field can receive it.
+            isEditingName = false
+            nameFocused = false
+            nameError = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .scriberShowRecorder)) { _ in
+            detailID = nil
+            showsHistory = false
+            showsDestinations = false
+            showsShortcut = false
+            showsSettings = false
+            showsCaptureKinds = false
             isEditingName = false
             nameFocused = false
             nameError = nil
@@ -109,8 +125,18 @@ struct RecorderPanel: View {
                             Text("设置").font(.headline)
                             Button("保存位置设置") { showsSettings = false; showsDestinations = true }
                                 .disabled(onChooseDirectory == nil)
-                            Text("快捷键设置暂不可用")
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                            Button {
+                                showsSettings = false
+                                showsShortcut = true
+                            } label: {
+                                HStack {
+                                    Text("呼出快捷键")
+                                    Spacer()
+                                    Text(shortcut.isRegistered ? shortcut.shortcut.label : "未启用")
+                                        .foregroundStyle(PanelPalette.slate)
+                                }
+                            }
+                            .disabled(!shortcut.isStarted).accessibilityLabel("快捷键设置")
                             Button("退出 Scriber") { onQuit() }
                         }
                         .padding(20)

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let recorder = AudioRecorder(defaults: .standard, historyStore: .standard)
     private let history = RecordingHistoryModel(store: .standard)
     private let playback = RecordingPlaybackModel(store: .standard)
+    private let shortcut = GlobalPanelShortcut(defaults: .standard)
     private var lastHistoryState = AudioRecorder.State.idle
     private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
@@ -40,7 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.delegate = self
         playback.onUpdate = { [weak self] in self?.writeUIReport() }
-        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, onQuit: { [weak self] in self?.requestQuit() },
+        shortcut.onUpdate = { [weak self] in self?.writeUIReport() }
+        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, shortcut: shortcut, onQuit: { [weak self] in self?.requestQuit() },
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
                                    onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
                                    onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
@@ -80,9 +82,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         writeUIReport()
         startCheckIfRequested()
-        if systemCheck == nil { refreshHistory(discover: true) }
+        if systemCheck == nil {
+            shortcut.start { [weak self] in self?.invokeShortcut() }
+            refreshHistory(discover: true)
+        }
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) { shortcut.stop() }
+
+    private func invokeShortcut() {
+        guard !isQuitting, directoryPicker == nil, !capturePicker.isChoosing, !historyRenameInProgress else { return }
+        if popover.isShown && NSApp.isActive { popover.performClose(nil) }
+        else {
+            playback.close()
+            NotificationCenter.default.post(name: .scriberShowRecorder, object: nil)
+            if popover.isShown {
+                NSApp.activate()
+                popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+                playback.resume()
+                refreshHistory()
+            } else { showPanel() }
         }
     }
 
@@ -130,6 +152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "historyLoading": history.isLoading,
             "historyError": history.errorMessage ?? history.discoveryMessage ?? "",
             "historyRenaming": historyRenameInProgress,
+            "shortcutKeyCode": shortcut.shortcut.keyCode,
+            "shortcutModifiers": shortcut.shortcut.modifiers,
+            "shortcutEnabled": shortcut.enabled,
+            "shortcutRegistered": shortcut.isRegistered,
+            "shortcutError": shortcut.errorMessage ?? "",
             "playbackID": playback.entry?.id.uuidString ?? "",
             "playbackKind": playback.selectedKind?.rawValue ?? "",
             "playbackLoading": playback.isLoading,
