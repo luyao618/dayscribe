@@ -9,12 +9,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private let microphone = MicrophoneRecorder()
+    private let recorder = AudioRecorder(defaults: .standard)
     private var subscriptions = Set<AnyCancellable>()
     private var terminationSignal: DispatchSourceSignal?
-    private var wantsToQuit = false
-    private var checkDirectory: URL?
-    private var checkDuration: TimeInterval = 0
     private var systemCheck: SystemAudioDiagnostic?
     private var terminationDeferred = false
 
@@ -32,30 +29,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
 
         popover.behavior = .transient
-        let panel = NSHostingController(rootView: RecorderPanel(microphone: microphone))
-        panel.sizingOptions = [.preferredContentSize]
-        panel.view.appearance = NSAppearance(named: .aqua)
-        popover.contentViewController = panel
-        popover.contentSize = panel.view.fittingSize
-        microphone.onCompletion = { [weak self] error in
-            guard let self else { return }
-            let wasCheck = self.checkDirectory != nil
-            if wasCheck { self.completeCheck(error: error) }
-            if wasCheck { NSApp.terminate(nil) }
+        installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() }))
+        recorder.onUpdate = { [weak self] in
+            guard let self, self.systemCheck == nil, self.terminationDeferred, !self.recorder.state.active else { return }
+            self.terminationDeferred = false
+            DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
         }
-        microphone.$elapsed.combineLatest(microphone.$phase)
-            .sink { [weak self] elapsed, phase in
-                guard let self else { return }
-                let seconds = Int(elapsed)
-                self.statusItem?.button?.title = phase == .recording
+        recorder.$summary.combineLatest(recorder.$state)
+            .sink { [weak self] summary, state in
+                guard let self, self.systemCheck == nil else { return }
+                let seconds = Int(summary?.duration ?? 0)
+                self.statusItem?.button?.title = state == .recording
                     ? String(format: " %02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60) : ""
             }
             .store(in: &subscriptions)
         signal(SIGTERM, SIG_IGN)
         let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-        // Enter AppKit's quit path from the native main queue, not a Swift task.
+        // AppKit runs a nested loop for terminateLater. Enter from a run-loop
+        // callback, so neither a Swift task nor a dispatch drain holds the main queue.
         signalSource.setEventHandler { [weak self] in
-            DispatchQueue.main.async { self?.requestQuit() }
+            RunLoop.main.perform { [weak self] in
+                MainActor.assumeIsolated {
+                    if CommandLine.arguments.contains("--quit-via-appkit") { NSApp.terminate(nil) }
+                    else { self?.requestQuit() }
+                }
+            }
         }
         signalSource.resume()
         terminationSignal = signalSource
@@ -92,22 +90,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await systemCheck.stop() }
             return .terminateLater
         }
-        // AVAudioRecorder.stop() synchronously closes its output file. Do not
-        // wait here for our asynchronous duration/metadata callback: AppKit's
-        // termination loop can prevent that main-actor callback from executing.
-        if microphone.isRecording {
-            microphone.stop()
-        }
-        if checkDirectory != nil {
-            wantsToQuit = true
-            completeCheck(error: microphone.errorMessage)
+        if recorder.state.active {
+            terminationDeferred = true
+            Task { await recorder.stop(interrupted: true) }
+            return .terminateLater
         }
         return .terminateNow
     }
 
     private func startCheckIfRequested() {
         let arguments = CommandLine.arguments
-        if let index = arguments.firstIndex(of: "--system-audio-check") ?? arguments.firstIndex(of: "--mixed-audio-check") {
+        if let index = ["--system-audio-check", "--mixed-audio-check", "--microphone-check", "--panel-audio-check"]
+            .compactMap({ arguments.firstIndex(of: $0) }).first {
             guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
                   let seconds = Double(arguments[index + 2]), seconds.isFinite, seconds > 0 else {
                 NSLog("Usage: --system-audio-check /absolute/output/directory seconds")
@@ -116,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             let modeIndex = arguments.firstIndex(of: "--audio-sources")
             let mode = modeIndex.flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-                ?? (arguments.contains("--mixed-audio-check") ? "both" : "system")
+                ?? (arguments.contains("--microphone-check") ? "microphone" : (arguments.contains("--system-audio-check") ? "system" : "both"))
             let sourceModes: [String: Set<AudioSource>] = ["system": [.system], "microphone": [.microphone], "both": [.system, .microphone]]
             guard let sources = sourceModes[mode] else { NSApp.terminate(nil); return }
             let deviceIndex = arguments.firstIndex(of: "--microphone-device")
@@ -124,62 +118,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let check = SystemAudioDiagnostic(
                 directory: URL(fileURLWithPath: arguments[index + 1], isDirectory: true),
                 seconds: seconds, sources: sources, microphoneDeviceID: device,
+                switchSources: arguments.contains("--switch-sources"),
+                panelSnapshots: arguments.contains("--panel-snapshots"),
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {
-                        NSApp.reply(toApplicationShouldTerminate: true)
+                        self?.terminationDeferred = false
+                        DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
                     } else {
-                        NSApp.terminate(nil)
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
                     }
                 })
             systemCheck = check
-            popover.contentViewController = NSHostingController(rootView: SystemAudioCheckPanel(
-                recorder: check.recorder, onStop: { [weak self] in self?.requestQuit() }))
+            if arguments.contains("--panel-audio-check") || arguments.contains("--microphone-check") {
+                installPanel(RecorderPanel(recorder: check.recorder, onQuit: { [weak self] in self?.requestQuit() }))
+            } else {
+                installPanel(SystemAudioCheckPanel(recorder: check.recorder, onStop: { [weak self] in self?.requestQuit() }))
+            }
             check.start()
             return
         }
-        guard let index = arguments.firstIndex(of: "--microphone-check") else { return }
-        guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
-              let duration = Double(arguments[index + 2]),
-              duration.isFinite, duration > 0 else {
-            NSLog("Usage: --microphone-check /absolute/output/directory seconds")
-            NSApp.terminate(nil)
-            return
-        }
-        let directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
-        checkDirectory = directory
-        checkDuration = duration
-        Task { await microphone.start(directory: directory, duration: duration) }
     }
 
     private func requestQuit() {
         if let systemCheck, systemCheck.recorder.state.active {
             Task { await systemCheck.stop() }
+        } else if recorder.state.active {
+            Task {
+                await recorder.stop(interrupted: true)
+                DispatchQueue.main.async { NSApp.terminate(nil) }
+            }
         } else {
             NSApp.terminate(nil)
         }
     }
 
-    private func completeCheck(error: String?) {
-        guard let directory = checkDirectory else { return }
-        checkDirectory = nil
-        let result: [String: Any] = [
-            "status": error == nil ? (wantsToQuit ? "interrupted" : "completed") : "failed",
-            "error": error ?? "",
-            "path": microphone.outputURL?.path ?? "",
-            "durationSeconds": microphone.elapsed,
-            "requestedDurationSeconds": checkDuration,
-            "pid": ProcessInfo.processInfo.processIdentifier,
-            "peakDBFS": microphone.peakDB,
-            "completedAt": ISO8601DateFormatter().string(from: Date())
-        ]
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
-            try data.write(to: directory.appendingPathComponent("result.json"), options: .atomic)
-        } catch {
-            NSLog("Unable to save microphone diagnostic: %@", error.localizedDescription)
-        }
+    private func installPanel<Content: View>(_ content: Content) {
+        let controller = NSHostingController(rootView: content)
+        controller.sizingOptions = [.preferredContentSize]
+        controller.view.appearance = NSAppearance(named: .aqua)
+        popover.contentViewController = controller
+        popover.contentSize = controller.view.fittingSize
     }
 
     @objc private func togglePanel() {

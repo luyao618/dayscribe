@@ -165,7 +165,7 @@ final class AudioSampleWriter: @unchecked Sendable {
                           peakDBFS: peakDBFS)
     }
 
-    private static func levels(_ sample: CMSampleBuffer, format: AVAudioFormat) throws -> (power: Float, peak: Float) {
+    static func levels(_ sample: CMSampleBuffer, format: AVAudioFormat) throws -> (power: Float, peak: Float) {
         let count = sample.numSamples
         guard count <= Int(Int32.max),
               let pcm = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count)) else {
