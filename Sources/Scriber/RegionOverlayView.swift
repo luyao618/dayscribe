@@ -34,6 +34,9 @@ final class RegionOverlayView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override var acceptsFirstResponder: Bool { true }
+    // Every display has its own overlay; selection must start on the first drag
+    // even when a different display's overlay is currently the key window.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func layout() {
         super.layout()
