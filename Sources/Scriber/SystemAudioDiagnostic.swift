@@ -34,6 +34,7 @@ final class SystemAudioDiagnostic {
     private var sentCompletion = false
     private let clock = ContinuousClock()
     private var started: ContinuousClock.Instant?
+    private var finishingStarted: ContinuousClock.Instant?
 
     init(directory: URL, seconds: Double, sources: Set<AudioSource> = [.system],
          microphoneDeviceID: String? = nil, switchSources: Bool = false, panelSnapshots: Bool = false,
@@ -138,11 +139,16 @@ final class SystemAudioDiagnostic {
     private func publish() {
         guard !sentCompletion else { return }
         if recorder.state == .recording, started == nil { started = clock.now }
+        if recorder.state == .finishing, finishingStarted == nil { finishingStarted = clock.now }
         let wall = started.map { instant in
             let duration = instant.duration(to: clock.now).components
             return Double(duration.seconds) + Double(duration.attoseconds) / 1e18
         } ?? 0
         let finished = recorder.state == .completed || recorder.state == .failed
+        let finalizationSeconds = finishingStarted.map { instant in
+            let duration = instant.duration(to: clock.now).components
+            return Double(duration.seconds) + Double(duration.attoseconds) / 1e18
+        }
         let status = recorder.state == .completed && recorder.interrupted ? "interrupted" : recorder.state.rawValue
         if switchSources || interruptSource != nil || failedAdditionCheck, trace.count < 512 {
             trace.append(["hostTime": CMClockGetTime(CMClockGetHostTimeClock()).seconds,
@@ -175,6 +181,7 @@ final class SystemAudioDiagnostic {
             "audioSaved": recorder.audioSaved,
             "availableStorageBytes": recorder.availableStorageBytes ?? 0,
             "powerProtectionActive": recorder.powerProtectionActive,
+            "finalizationSeconds": finalizationSeconds.map { $0 as Any } ?? NSNull(),
             "videoSaved": recorder.videoSaved,
             "videoPath": recorder.videoURL?.path ?? "",
             "videoFrames": recorder.videoSummary?.videoFrames ?? 0,
