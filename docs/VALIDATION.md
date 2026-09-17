@@ -233,6 +233,28 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 ![Actual native filename editor](screenshots/native-filename-editor.png)
 ![Actual native panel after paired saved rename](screenshots/native-filename-saved.png)
 
+## Native recording destinations — 2026-09-17
+
+- The approved two-card destination subpage opens from the main destination row or settings. Audio and video use separate persisted folder preferences; video and standalone audio share the video preference. The system NSOpenPanel runs asynchronously, supports folder selection/creation, and leaves preferences unchanged on Cancel. A directory is captured before start's first suspension, so changing a preference cannot move the active session. The main panel shows the current directory and a visible/accessibility “next recording” hint; after saving, a changed preference is labeled as the next destination.
+- Two component cases cover independent preferences and restoration, invalid file/missing-directory rejection, the initial destination snapshot, and retaining an unavailable absolute preference instead of silently substituting the default. All **50 component cases (38 functions)**, native build/signature and self-review pass (`artifacts/destination-tests.log`, `destination-build.log`).
+- Actual normal-app GUI checks selected existing local folders through the native parent menu and folder rows, cancelled the chooser, changed directories during real capture, restarted the app and captured again. The current/next checks temporarily used the Scriber parent folder and its existing audio/video children; the original effective preferences were subsequently restored with the app closed and verified after relaunch. No recorded media was moved to implement a preference change.
+
+| Real GUI capture | Duration / audio frames | Evidence under artifacts/gui-validation |
+|---|---|---|
+| Audio, change destination while recording; save to the initial folder | 4.5903125s /220335 | directory-audio-current-result.json |
+| Next audio after app restart; use the persisted new folder | 2.5409375s /121965 | directory-audio-next-result.json |
+| Region video, change destination while recording; keep MP4/M4A in initial folder | 4.514458333s /216694 | directory-video-current-result.json |
+| Next region video; both files use the new video folder | 2.620375s /125778 | directory-video-next-result.json |
+| Quit path while folder chooser is open during audio | 4.274770833s /205189 | directory-picker-quit-result.json |
+| Direct AppKit termination while folder chooser is open during audio | 2.954979167s /141839 | directory-appkit-picker-quit-result.json |
+
+- Every listed media file fully decodes. Both video pairs are960×600 and have byte-identical decoded audio with the exact reported frame counts. Frame counters advanced while the chooser was open. Quit cancelled the chooser, finalized audio, preserved the folder preferences and exited; the second quit used `--quit-via-appkit` to exercise terminateLater directly. Original folders are confirmed in directory-restored-preferences.json and both quit results. The tested app is exited.
+- Harness limitations remain separate from acceptance: long path input/AXSetValue in the system Go-to-Folder field was not a reliable edit under the active input method; those attempts were not counted. Folder navigation then used actual menus and rows, with pointer targets verified by AX hit-testing. The harness now waits for visible controls before toggling an animating popover. An earlier failed UI-cleanup attempt left an84.4s audio trial running until a verified graceful termination; it is retained locally but excluded from successful directory-switch acceptance. Later cleanup always falls back to graceful termination of its own recording process. A late restore-only UI observation failed after the successful video checks; effective preferences were restored through the app's preferences while closed and verified on relaunch. Neither input-source settings nor clipboard contents were changed.
+- These are short real capture and native GUI checks, not the required long tests or crash-recovery acceptance. Actual screenshots below show the current/next path hint and the restored destination subpage; raw media remains local.
+
+![Actual recording panel with a directory change applying next time](screenshots/native-destination-current.png)
+![Actual destination settings with original folders restored](screenshots/native-destination-settings.png)
+
 ## Remaining acceptance
 
-Destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+Persistent history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.

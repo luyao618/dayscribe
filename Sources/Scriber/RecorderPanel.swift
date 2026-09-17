@@ -11,6 +11,7 @@ struct RecorderPanel: View {
     @State private var showsSettings = false
     let onQuit: () -> Void
     var onStartVideo: ((CaptureKind, String?) async -> Void)? = nil
+    var onChooseDirectory: ((RecordingMode) async -> Void)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
@@ -19,32 +20,38 @@ struct RecorderPanel: View {
     @State private var nameDraft = ""
     @State private var nameError: String?
     @FocusState private var nameFocused: Bool
+    @State private var showsDestinations = false
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            VStack(spacing: 0) {
-                modePicker
-                summary
-                if mode == .video { captureTarget }
-                sources
-                destination
-                if let error = recorder.controlMessage ?? recorder.errorMessage {
-                    Text(error)
-                        .font(.system(size: 11))
-                        .foregroundStyle(PanelPalette.record)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.bottom, 12)
+            if showsDestinations {
+                RecordingDestinationsPanel(recorder: recorder, onBack: { showsDestinations = false },
+                                           onChoose: onChooseDirectory)
+            } else {
+                header
+                VStack(spacing: 0) {
+                    modePicker
+                    summary
+                    if mode == .video { captureTarget }
+                    sources
+                    destination
+                    if let error = recorder.controlMessage ?? recorder.errorMessage {
+                        Text(error)
+                            .font(.system(size: 11))
+                            .foregroundStyle(PanelPalette.record)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 12)
+                    }
+                    primaryAction
+                    Text(mode == .audio ? "保存为 M4A 音频" : "同时保存 MP4 视频和 M4A 音频")
+                        .font(.system(size: 10))
+                        .foregroundStyle(PanelPalette.slate)
+                        .frame(height: 24, alignment: .bottom)
+                    recentRecording
                 }
-                primaryAction
-                Text(mode == .audio ? "保存为 M4A 音频" : "同时保存 MP4 视频和 M4A 音频")
-                    .font(.system(size: 10))
-                    .foregroundStyle(PanelPalette.slate)
-                    .frame(height: 24, alignment: .bottom)
-                recentRecording
+                .padding(.horizontal, 20)
+                .padding(.bottom, 18)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 18)
         }
         .foregroundStyle(PanelPalette.ink)
         .frame(width: 390)
@@ -83,7 +90,9 @@ struct RecorderPanel: View {
                     .popover(isPresented: $showsSettings) {
                         VStack(alignment: .leading, spacing: 14) {
                             Text("设置").font(.headline)
-                            Text("保存位置与快捷键设置暂不可用")
+                            Button("保存位置设置") { showsSettings = false; showsDestinations = true }
+                                .disabled(onChooseDirectory == nil)
+                            Text("快捷键设置暂不可用")
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
                             Button("退出 Scriber") { onQuit() }
                         }
@@ -254,30 +263,35 @@ struct RecorderPanel: View {
     }
 
     private var destination: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "folder")
-                .font(.system(size: 16))
+        Button { showsDestinations = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "folder")
+                    .font(.system(size: 16))
+                    .foregroundStyle(PanelPalette.slate)
+                    .frame(width: 29, height: 29)
+                    .background(PanelPalette.track, in: RoundedRectangle(cornerRadius: 7))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(destinationCaption).font(.system(size: 10))
+                    Text(destinationPath).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
+                    if hasPendingDestination {
+                        Text("新位置从下次录制生效").font(.system(size: 9)).foregroundStyle(PanelPalette.iris)
+                    }
+                }
                 .foregroundStyle(PanelPalette.slate)
-                .frame(width: 29, height: 29)
-                .background(PanelPalette.track, in: RoundedRectangle(cornerRadius: 7))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("保存到").font(.system(size: 10))
-                Text(destinationPath).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
-            }
-            .foregroundStyle(PanelPalette.slate)
-            Spacer(minLength: 4)
-            Button {} label: {
+                Spacer(minLength: 4)
                 HStack(spacing: 3) {
                     Text("更改")
                     Image(systemName: "chevron.right").font(.system(size: 8))
                 }
                 .font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
             }
-            .buttonStyle(.plain)
-            .disabled(true)
-            .help("修改保存位置暂不可用")
+            .frame(height: 60)
+            .contentShape(Rectangle())
         }
-        .frame(height: 60)
+        .buttonStyle(.plain)
+        .disabled(onChooseDirectory == nil || recorder.isBusy || isSelecting)
+        .accessibilityLabel("更改保存位置")
+        .accessibilityValue("\(destinationCaption)：\(destinationPath)\(hasPendingDestination ? "，新位置从下次录制生效" : "")")
         .help(destinationURL.path)
     }
 
@@ -414,12 +428,20 @@ struct RecorderPanel: View {
         return pendingTitles[mode] ?? "开始录制后自动命名"
     }
     private var destinationURL: URL {
-        if matchesRecordingMode, let url = recorder.recordingDirectory { return url }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Movies/Scriber/\(mode == .audio ? "录音" : "录屏")", directoryHint: .isDirectory)
+        if matchesRecordingMode, recorder.state.active, let url = recorder.recordingDirectory { return url }
+        return recorder.destination(for: mode)
     }
     private var destinationPath: String {
         (destinationURL.path as NSString).abbreviatingWithTildeInPath
+    }
+    private var hasPendingDestination: Bool {
+        recorder.state.active && destinationURL != recorder.destination(for: mode)
+    }
+    private var destinationCaption: String {
+        if recorder.state.active { return "本次保存到" }
+        if matchesRecordingMode, let previous = recorder.recordingDirectory,
+           previous != recorder.destination(for: mode) { return "下次保存到" }
+        return "保存到"
     }
     private func sourceRow(_ source: AudioSource) -> some View {
         let name = source == .system ? "电脑声音" : "麦克风"
@@ -452,10 +474,4 @@ struct RecorderPanel: View {
         case .failed: "录制未完成"
         }
     }
-}
-
-enum RecordingMode: String, CaseIterable {
-    case audio, video
-    var title: String { self == .audio ? "录音" : "录屏" }
-    var symbol: String { self == .audio ? "mic" : "display" }
 }
