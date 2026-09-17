@@ -174,6 +174,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "defaultInputUID": recorder.audioDevices?.defaultInput?.uid ?? "",
             "defaultOutputUID": recorder.audioDevices?.defaultOutput?.uid ?? "",
             "audioDeviceError": recorder.deviceReadError ?? "",
+            "captureMicrophoneUID": recorder.microphoneDeviceID ?? "",
+            "recoveringSources": recorder.recoveringSources.map { $0.rawValue }.sorted(),
+            "reconnectCounts": Dictionary(uniqueKeysWithValues: recorder.reconnectCounts.map { (String($0.key.rawValue), $0.value) }),
             "error": recorder.controlMessage ?? recorder.errorMessage ?? ""
         ]
         do {
@@ -253,6 +256,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 interruptSource: arguments.contains("--interrupt-system-source") || arguments.contains("--stall-system-source") ? .system
                     : (arguments.contains("--interrupt-microphone-source") || arguments.contains("--stall-microphone-source") ? .microphone : nil),
                 reportSourceFailure: !arguments.contains("--stall-system-source") && !arguments.contains("--stall-microphone-source"),
+                persistentInterruption: arguments.contains("--persistent-source-interruption"),
+                failedAdditionCheck: arguments.contains("--failed-addition-check"),
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {
