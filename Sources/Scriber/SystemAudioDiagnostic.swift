@@ -185,6 +185,7 @@ final class SystemAudioDiagnostic {
             "videoSaved": recorder.videoSaved,
             "videoPath": recorder.videoURL?.path ?? "",
             "videoFrames": recorder.videoSummary?.videoFrames ?? 0,
+            "videoCaptureGeometry": recorder.videoCaptureGeometry,
             "videoEpochHostTime": recorder.videoEpochHostTime ?? 0,
             "captureTarget": recorder.captureTargetTitle,
             "videoDurationSeconds": recorder.videoSummary?.duration ?? 0,

@@ -34,6 +34,8 @@ struct InspectMedia {
             var streams: [[String: Any]] = []
             for type in [AVMediaType.audio, .video] {
                 for track in try await asset.loadTracks(withMediaType: type) {
+                    let range = try await track.load(.timeRange)
+                    let mediaRanges = try await track.load(.segments).filter { !$0.isEmpty }.map { $0.timeMapping.target }
                     let reader = try AVAssetReader(asset: asset)
                     let settings: [String: Any] = type == .audio ? [
                         AVFormatIDKey: kAudioFormatLinearPCM, AVLinearPCMBitDepthKey: 32,
@@ -43,12 +45,18 @@ struct InspectMedia {
                     reader.add(output)
                     guard reader.startReading() else { throw reader.error ?? CocoaError(.fileReadCorruptFile) }
                     var frames: Int64 = 0
+                    var framesInMediaSegments: Int64 = 0
                     var first: Double?
                     var end = 0.0
                     var hash = SHA256()
                     while let sample = output.copyNextSampleBuffer() {
                         first = first ?? sample.presentationTimeStamp.seconds
                         frames += Int64(sample.numSamples)
+                        // Track timeRange includes empty edits. AVAssetReader
+                        // can render a gap picture there, with no encoded sample.
+                        if mediaRanges.contains(where: { CMTimeRangeContainsTime($0, time: sample.presentationTimeStamp) }) {
+                            framesInMediaSegments += Int64(sample.numSamples)
+                        }
                         if type == .audio {
                             guard let description = sample.formatDescription else { throw CocoaError(.fileReadCorruptFile) }
                             let format = AVAudioFormat(cmAudioFormatDescription: description)
@@ -65,8 +73,9 @@ struct InspectMedia {
                         } else { end = sample.presentationTimeStamp.seconds + sample.duration.seconds }
                     }
                     guard reader.status == .completed else { throw reader.error ?? CocoaError(.fileReadCorruptFile) }
-                    let range = try await track.load(.timeRange)
                     streams.append(["type": type == .audio ? "audio" : "video", "frames": frames,
+                                    "framesInMediaSegments": framesInMediaSegments, "trackStart": timeValue(range.start.seconds),
+                                    "firstMediaStart": timeValue(mediaRanges.first?.start.seconds),
                                     "first": timeValue(first), "end": timeValue(end), "trackEnd": timeValue(range.end.seconds),
                                     "pcmSHA256": type == .audio ? hash.finalize().map { String(format: "%02x", $0) }.joined() : ""])
                 }

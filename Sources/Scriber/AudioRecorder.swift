@@ -71,6 +71,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var powerSession: RecordingPowerSession?
     private var stopWaiters: [CheckedContinuation<Void, Never>] = []
     var powerProtectionActive: Bool { powerSession?.systemAssertion != nil }
+    private(set) var videoCaptureGeometry: [String: Double] = [:]
     private var storageMonitor: Task<Void, Never>?
     private let readStorage: @Sendable (URL) throws -> RecordingStorage
     private(set) var availableStorageBytes: UInt64?
@@ -382,6 +383,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         availableStorageBytes = nil
         videoSummary = nil
         videoEpochHostTime = nil
+        videoCaptureGeometry = [:]
         captureTargetTitle = ""
         videoMetrics = ScreenVideoMetrics()
         audioSaved = false
@@ -458,6 +460,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 let target = try CaptureTarget.resolve(captureRequest ?? .display(display.displayID), content: content)
                 captureTargetTitle = target.title
                 let configuration = try target.configuration()
+                videoCaptureGeometry = ["pointWidth": Double(target.filter.contentRect.width),
+                    "pointHeight": Double(target.filter.contentRect.height), "scale": Double(target.filter.pointPixelScale),
+                    "pixelWidth": Double(configuration.width), "pixelHeight": Double(configuration.height)]
                 let encoder = try VideoSampleWriter(url: videoURL, width: configuration.width,
                                                      height: configuration.height, queue: sink.queue)
                 let captureEpoch = CMClockGetTime(CMClockGetHostTimeClock())
