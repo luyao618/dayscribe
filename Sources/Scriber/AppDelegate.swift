@@ -169,6 +169,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
             "sources": recorder.sources.map { $0.rawValue }.sorted(),
+            "microphoneDeviceName": recorder.microphoneName,
+            "systemOutputDeviceName": recorder.sourceDeviceName(.system),
+            "defaultInputUID": recorder.audioDevices?.defaultInput?.uid ?? "",
+            "defaultOutputUID": recorder.audioDevices?.defaultOutput?.uid ?? "",
+            "audioDeviceError": recorder.deviceReadError ?? "",
             "error": recorder.controlMessage ?? recorder.errorMessage ?? ""
         ]
         do {

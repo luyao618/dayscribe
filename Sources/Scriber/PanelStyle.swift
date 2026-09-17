@@ -38,6 +38,8 @@ struct PanelSourceRow: View {
     let status: String
     let powerDB: Float?
     let toggleHelp: String
+    var deviceName: String = ""
+    var deviceHelp: String = ""
     var canToggle = true
 
     var body: some View {
@@ -47,8 +49,15 @@ struct PanelSourceRow: View {
                     .font(.system(size: 13)).frame(width: 16)
                 Text(name).font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(enabled ? PanelPalette.ink : PanelPalette.slate)
+                    .fixedSize()
+                if !deviceName.isEmpty {
+                    Text(deviceName).font(.system(size: 9)).foregroundStyle(PanelPalette.slate)
+                        .lineLimit(1).truncationMode(.middle)
+                        .help(deviceHelp)
+                        .accessibilityLabel("\(name)设备：\(deviceName)")
+                }
                 Spacer(minLength: 2)
-                Text(status).font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
+                Text(status).font(.system(size: 10)).foregroundStyle(PanelPalette.slate).fixedSize()
                 Toggle(name, isOn: $enabled)
                     .toggleStyle(SourceToggleStyle(tint: tint, name: name))
                     .disabled(!canToggle)

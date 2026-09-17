@@ -29,7 +29,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var lastSavedURL: URL?
     @Published private(set) var lastSavedFiles: [URL] = []
     @Published private(set) var lastSavedDuration = ""
-    @Published private(set) var microphoneName = "默认麦克风"
+    @Published private(set) var audioDevices: AudioDeviceSnapshot?
+    @Published private(set) var deviceReadError: String?
     @Published private(set) var recordingTitle = ""
     @Published private(set) var destinationDirectories: [RecordingMode: URL] = [:]
     private(set) var recordingDirectory: URL?
@@ -53,6 +54,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var generation = UUID()
     private var captureFilter: SCContentFilter?
     private var microphoneDeviceID: String?
+    private var deviceMonitor: AudioDeviceMonitor?
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
     private let historyStore: RecordingHistoryStore?
@@ -67,7 +69,38 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         })
         let mask = (defaults?.object(forKey: "recordingSources") as? Int ?? 3) & 3
         sources = Set(AudioSource.allCases.filter { (mask == 0 ? 3 : mask) & (1 << $0.rawValue) != 0 })
-        microphoneName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
+        deviceMonitor = AudioDeviceMonitor { [weak self] reading in
+            self?.updateAudioDevices(reading)
+        }
+    }
+
+    var microphoneName: String { sourceDeviceName(.microphone) }
+
+    func sourceDeviceName(_ source: AudioSource) -> String {
+        guard deviceReadError == nil else { return "设备状态未知" }
+        guard let audioDevices else { return "正在识别设备" }
+        if source == .system { return audioDevices.defaultOutput?.name ?? "无默认输出设备" }
+        let uid = state.active ? microphoneDeviceID : nil
+        return audioDevices.microphone(uid: uid)?.name ?? (uid == nil ? "无可用麦克风" : "麦克风已断开")
+    }
+
+    func sourceDeviceHelp(_ source: AudioSource) -> String {
+        if let deviceReadError { return deviceReadError }
+        let name = sourceDeviceName(source)
+        if source == .system { return "系统默认输出：\(name)；电脑声音采集系统播放的声音。" }
+        if state.active, let selected = microphoneDeviceID, let next = audioDevices?.defaultInput,
+           selected != next.uid {
+            return "本次麦克风：\(name)；系统默认已改为 \(next.name)。"
+        }
+        return "\(state.active ? "本次麦克风" : "系统默认输入")：\(name)"
+    }
+
+    private func updateAudioDevices(_ reading: AudioDeviceMonitor.Reading) {
+        switch reading {
+        case .success(let snapshot): audioDevices = snapshot; deviceReadError = nil
+        case .failure(let error): deviceReadError = error.localizedDescription
+        }
+        onUpdate?()
     }
 
     var isRecording: Bool { state == .recording }
@@ -181,7 +214,6 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             guard generation == token, isRecording else { return false }
             sources = selected
             captureMetrics = await output.snapshot()
-            updateMicrophoneName(microphoneDeviceID)
             saveSourcePreference()
             return true
         } catch {
@@ -225,11 +257,6 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         defaults?.set(sources.reduce(0) { $0 | (1 << $1.rawValue) }, forKey: "recordingSources")
     }
 
-    private func updateMicrophoneName(_ id: String?) {
-        microphoneName = id.map { AVCaptureDevice(uniqueID: $0)?.localizedName ?? "所选麦克风" }
-            ?? AVCaptureDevice.default(for: .audio)?.localizedName ?? "默认麦克风"
-    }
-
     func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil,
                recordScreen recordVideo: Bool = false, captureRequest: CaptureRequest? = nil, title: String? = nil) async {
         let recordScreen = recordVideo || captureRequest != nil
@@ -243,7 +270,6 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         captureMetrics = AudioCaptureMetrics()
         self.sources = sources
         self.microphoneDeviceID = microphoneDeviceID ?? AVCaptureDevice.default(for: .audio)?.uniqueID
-        updateMicrophoneName(self.microphoneDeviceID)
         summary = nil
         errorMessage = nil
         outputURL = nil

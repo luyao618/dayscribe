@@ -319,6 +319,17 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Actual native shortcut settings](screenshots/native-shortcut-settings.png)
 
+## Live audio device inventory and panel labels — 2026-09-17
+
+- The source rows now display real device names, with full names and default/selected-device context in tooltips and accessibility labels. The approved row dimensions and panel layout are retained. An active microphone remains identified by its capture UID; a new system default is not described as captured before reconnection. Read failures show unknown device state instead of an old name presented as current. Source preferences and stream behavior are unchanged in this increment.
+- CoreAudio inventory includes device UID, input/output direction, alive state, nominal rate, transport and system defaults. Reads run off the main actor, one at a time, with a one-second interval after each read, including when the popover is hidden. Identical results are coalesced; failures are retried on the next tick, and releasing the monitor cancels callbacks.
+- Three new component cases cover pinned-vs-default microphone identity, missing/dead/wrong-direction devices, and monitor change/error/recovery/coalescing/release. All **75 component cases (63 functions)**, native build/signature and self-review pass (`artifacts/device-state-tests-final.log`, `device-state-app-build.log`). Injected device snapshots verify policy/lifecycle only; they are not physical disconnect evidence.
+- The production reader's actual inventory independently matches macOS System Information for names, direction, rates and defaults: MacBook Pro Microphone and Speakers, both48kHz, plus Microsoft Teams Audio virtual input/output. Built-in devices are the current defaults; no USB or Bluetooth device is present. Evidence: device-state-inventory.json and device-state-system-profiler.json. A repeatable read-only probe can be built with `xcrun swiftc -swift-version 6 -parse-as-library Sources/Scriber/AudioDevices.swift tools/InspectAudioDevices.swift -o artifacts/InspectAudioDevices` and run directly.
+- Actual native AX controls expose the same full device names in idle and recording states. UI Start/Stop captured **2.858708333s /137218 frames**, fully decoded, with both source preferences unchanged; Quit exited. A separate known-tone dual-source regression captured **8.151645833s /391279 frames** with the expected ordered880/1760Hz signal,48kHz microphone and full decode. Evidence: artifacts/device-state-gui.log, gui-validation/device-state-recording-result.json and artifacts/device-state-capture.log. The final native screenshot below was visually checked. No Scriber test recording was left running.
+- A standalone helper build initially warned about conversion of a method reference to a Sendable reader; an explicit closure resolved it, and the Swift6 helper and app builds pass. Device reconnection, source-specific stream failures and physical transitions remain the next separate increment.
+
+![Actual native device names during recording](screenshots/native-device-state.png)
+
 ## Remaining acceptance
 
 Bluetooth, device changes, long-recording recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.

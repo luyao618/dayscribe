@@ -504,7 +504,9 @@ struct RecorderPanel: View {
                                   Task { await recorder.setSources(selected) }
                               }), status: recorder.sourceStatus(source),
                               powerDB: recorder.sourcePower(source),
-                              toggleHelp: source == .microphone ? "切换麦克风 · \(recorder.microphoneName)" : "切换电脑声音",
+                              toggleHelp: "切换\(name) · \(recorder.sourceDeviceHelp(source))",
+                              deviceName: recorder.sourceDeviceName(source),
+                              deviceHelp: recorder.sourceDeviceHelp(source),
                               canToggle: recorder.canChangeSources && !isSelecting)
     }
     private var statusColor: Color {
