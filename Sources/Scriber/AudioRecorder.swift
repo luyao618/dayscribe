@@ -106,6 +106,26 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     @discardableResult
+    func renameSavedRecording(_ title: String) async -> Bool {
+        guard state == .completed, let sessionFiles else { return false }
+        do { _ = try RecordingFilename.validated(title) }
+        catch { controlMessage = error.localizedDescription; return false }
+        let files = RecordingFileSet(urls: Dictionary(uniqueKeysWithValues:
+            [(RecordingFileKind.audio, audioSaved ? outputURL : nil), (.video, videoSaved ? videoURL : nil)]
+                .compactMap { kind, url in url.map { (kind, $0) } }))
+        state = .finishing
+        controlMessage = nil
+        onUpdate?()
+        let result = await Task.detached { sessionFiles.renamePublished(files, title: title) }.value
+        applyFileFinalization(result)
+        controlMessage = result.errorMessage
+        state = .completed
+        updateRecentFiles()
+        onUpdate?()
+        return result.errorMessage == nil
+    }
+
+    @discardableResult
     func setSources(_ selected: Set<AudioSource>) async -> Bool {
         controlMessage = nil
         guard !selected.isEmpty else { controlMessage = "至少保留一路声音。"; return false }
@@ -385,19 +405,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             if audioSaved { closed.insert(.audio) }
             if videoSaved { closed.insert(.video) }
             let finished = await Task.detached { sessionFiles.finalize(title: title, closed: closed) }.value
-            outputURL = finished.files.urls[.audio]
-            videoURL = finished.files.urls[.video]
-            recordingTitle = finished.title
-            audioSaved = finished.published.contains(.audio)
-            videoSaved = finished.published.contains(.video)
-            if let summary, let outputURL {
-                self.summary = .init(url: outputURL, frames: summary.frames, duration: summary.duration,
-                                     powerDBFS: summary.powerDBFS, peakDBFS: summary.peakDBFS)
-            }
-            if let videoSummary, let videoURL {
-                self.videoSummary = .init(url: videoURL, videoFrames: videoSummary.videoFrames,
-                                          audioFrames: videoSummary.audioFrames, duration: videoSummary.duration)
-            }
+            applyFileFinalization(finished)
             if let message = finished.errorMessage {
                 errorMessage = [errorMessage, message].compactMap { $0 }.joined(separator: "\n")
             }
@@ -407,12 +415,32 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             errorMessage = saved + (errorMessage ?? "")
         }
         state = errorMessage == nil ? .completed : .failed
+        updateRecentFiles()
+        onUpdate?()
+    }
+
+    private func applyFileFinalization(_ result: RecordingSessionFiles.Finalization) {
+        outputURL = result.files.urls[.audio]
+        videoURL = result.files.urls[.video]
+        recordingTitle = result.title
+        audioSaved = result.published.contains(.audio)
+        videoSaved = result.published.contains(.video)
+        if let summary, let outputURL {
+            self.summary = .init(url: outputURL, frames: summary.frames, duration: summary.duration,
+                                 powerDBFS: summary.powerDBFS, peakDBFS: summary.peakDBFS)
+        }
+        if let videoSummary, let videoURL {
+            self.videoSummary = .init(url: videoURL, videoFrames: videoSummary.videoFrames,
+                                      audioFrames: videoSummary.audioFrames, duration: videoSummary.duration)
+        }
+    }
+
+    private func updateRecentFiles() {
         if audioSaved || videoSaved {
             lastSavedURL = videoSaved ? videoURL : outputURL
             lastSavedFiles = [(videoSaved ? videoURL : nil), (audioSaved ? outputURL : nil)].compactMap { $0 }
             lastSavedDuration = elapsedText
         }
-        onUpdate?()
     }
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {

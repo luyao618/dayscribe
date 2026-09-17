@@ -181,7 +181,7 @@ final class SystemAudioDiagnostic {
     // Renders our own SwiftUI view from live capture state; not a desktop screenshot.
     private func renderPanel(_ filename: String) {
         let view = RecorderPanel(recorder: recorder, mode: recordScreen ? .video : .audio,
-                                 onQuit: {}, onStartVideo: { _ in },
+                                 onQuit: {}, onStartVideo: { _, _ in },
                                  captureKind: captureRequest?.kind ?? .display).environment(\.colorScheme, .light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2

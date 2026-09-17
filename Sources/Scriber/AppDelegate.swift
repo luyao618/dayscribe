@@ -6,7 +6,7 @@ import Darwin
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let recorder = AudioRecorder(defaults: .standard)
@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if writePermissionCheckIfRequested() { return }
+        installEditingMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = item.button else { return }
         button.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Scriber")
@@ -31,8 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         capturePicker.onChange = { [weak self] in self?.writeUIReport() }
         popover.behavior = .transient
+        popover.delegate = self
         installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() },
-                                   onStartVideo: { [weak self] kind in await self?.startVideo(kind) }))
+                                   onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
@@ -68,6 +70,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
         }
+    }
+
+    func popoverWillClose(_ notification: Notification) {
+        NotificationCenter.default.post(name: .scriberPanelClosing, object: nil)
+    }
+
+    /// Accessory apps still need an Edit menu for standard field shortcuts.
+    private func installEditingMenu() {
+        let menu = NSMenu()
+        let app = NSMenuItem()
+        app.submenu = NSMenu(title: "Scriber")
+        app.submenu?.addItem(withTitle: "退出 Scriber", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(app)
+        let edit = NSMenuItem()
+        edit.submenu = NSMenu(title: "编辑")
+        for (title, action, key) in [("撤销", "undo:", "z"), ("剪切", "cut:", "x"),
+                                     ("拷贝", "copy:", "c"), ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] {
+            edit.submenu?.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
+        }
+        menu.addItem(edit)
+        NSApp.mainMenu = menu
     }
 
     /// Optional local evidence for manual GUI validation; never enabled in normal launches.
@@ -182,13 +205,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startVideo(_ kind: CaptureKind) async {
+    private func startVideo(_ kind: CaptureKind, title: String?) async {
         guard !recorder.state.active else { return }
         recorder.reportControlMessage(nil)
         popover.performClose(nil)
         do {
             if let request = try await capturePicker.choose(kind) {
-                await recorder.start(captureRequest: request)
+                await recorder.start(captureRequest: request, title: title)
             }
         } catch { recorder.reportControlMessage(error.localizedDescription) }
         writeUIReport()

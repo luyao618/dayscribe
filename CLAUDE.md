@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-主面板使用 AudioRecorder，真实双路选择、电平、最近文件和异步退出已通过内置/USB实测。每个声音源独立 SCStream，避免 captureMicrophone=false 后仍采集麦克风。全屏录制已在 --display-video-check 测试入口打通：ScreenVideoOutput + VideoSampleWriter 生成有声音的 MP4，同一混音 PCM 写入独立 M4A，使用公共 host-clock 起点和48k终点；Retina尺寸取 SCK contentRect×pointPixelScale。声音切换、双路/单路/USB录屏及 AppKit 退出通过。47 个组件用例及原生构建通过。CaptureTarget 已支持屏幕、独立窗口和区域几何；主屏、左侧外接屏、竖屏上的真实窗口/区域四色测试通过。采集规范为 sRGB，编码显式标记颜色，避免显示器色彩空间导致偏色。正式录屏入口和 NativeCapturePicker / RegionOverlayView 已通过原生 AX、HID 鼠标及系统键盘操作验收；修复了未激活的选区窗口首次拖动被激活行为吞掉的问题。当前应用可带 --ui-validation-report 写入手工验收的本地状态，不应把合成视图事件或离屏截图当作实际点击验证。design/ 是已确认的视觉基线。RecordingSessionFiles 在目标卷独立临时目录写入，收尾后通过 RecordingFileSet 防覆盖保存并更新实际 URL；真实音频/视频的录制中改名接口与 AppKit 退出通过，面板仍未开放改名与路径设置。每次录制保留小型 session.json；它不是崩溃恢复实现。完整证据与剩余项见 docs/VALIDATION.md。
+主面板使用 AudioRecorder，真实双路选择、电平、最近文件和异步退出已通过内置/USB实测。每个声音源独立 SCStream，避免 captureMicrophone=false 后仍采集麦克风。全屏录制已在 --display-video-check 测试入口打通：ScreenVideoOutput + VideoSampleWriter 生成有声音的 MP4，同一混音 PCM 写入独立 M4A，使用公共 host-clock 起点和48k终点；Retina尺寸取 SCK contentRect×pointPixelScale。声音切换、双路/单路/USB录屏及 AppKit 退出通过。48 个组件用例及原生构建通过。CaptureTarget 已支持屏幕、独立窗口和区域几何；主屏、左侧外接屏、竖屏上的真实窗口/区域四色测试通过。采集规范为 sRGB，编码显式标记颜色，避免显示器色彩空间导致偏色。正式录屏入口和 NativeCapturePicker / RegionOverlayView 已通过原生 AX、HID 鼠标及系统键盘操作验收；修复了未激活的选区窗口首次拖动被激活行为吞掉的问题。当前应用可带 --ui-validation-report 写入手工验收的本地状态，不应把合成视图事件或离屏截图当作实际点击验证。design/ 是已确认的视觉基线。RecordingSessionFiles 在目标卷独立临时目录写入，收尾后通过 RecordingFileSet 防覆盖保存并更新实际 URL；真实音频/视频的录制中改名接口与 AppKit 退出通过，面板已开放录制前/中/保存后改名并通过真实键盘、AX、HID 和双文件解码测试，路径设置尚未接入。标准 Edit 菜单使输入框快捷键工作；主浮层关闭时取消未确认的名称编辑。每次录制保留小型 session.json；它不是崩溃恢复实现。完整证据与剩余项见 docs/VALIDATION.md。
 
 ## 约定
 

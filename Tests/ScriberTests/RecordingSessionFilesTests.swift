@@ -65,6 +65,29 @@ struct RecordingSessionFilesTests {
         #expect(!FileManager.default.fileExists(atPath: root.path))
     }
 
+    @Test func savedPairRenameKeepsCurrentPathsAndMetadataThroughRepeatedEdits() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = try RecordingSessionFiles.create(directory: root, title: "原名", video: true)
+        for url in session.files.urls.values { try Data(url.pathExtension.utf8).write(to: url) }
+        let saved = session.finalize(title: "原名", closed: [.audio, .video])
+        let occupied = root.appendingPathComponent("新名.m4a")
+        try Data("keep".utf8).write(to: occupied)
+        let renamed = session.renamePublished(saved.files, title: "新名")
+        #expect(renamed.errorMessage == nil && renamed.title == "新名 (2)")
+        let again = session.renamePublished(renamed.files, title: "第二次改名")
+        #expect(again.errorMessage == nil && again.title == "第二次改名")
+        for (kind, url) in again.files.urls {
+            #expect(try Data(contentsOf: url) == Data(kind.rawValue.utf8))
+            #expect(try read(session).paths[kind.rawValue] == url.path)
+        }
+        #expect(try Data(contentsOf: occupied) == Data("keep".utf8))
+        let invalid = session.renamePublished(again.files, title: "../outside")
+        #expect(invalid.errorMessage != nil && invalid.files.urls == again.files.urls)
+        #expect(invalid.title == "第二次改名")
+        #expect(try read(session).title == "第二次改名")
+    }
+
     private func read(_ session: RecordingSessionFiles) throws -> RecordingSessionFiles.Manifest {
         try JSONDecoder().decode(RecordingSessionFiles.Manifest.self, from: Data(contentsOf: session.manifestURL))
     }

@@ -214,6 +214,25 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 ![Live native audio panel after recorder name change](screenshots/native-session-recording.png)
 ![Native saved video panel after recorder name change](screenshots/native-session-saved.png)
 
+## Native filename editing — 2026-09-17
+
+- The approved centered filename/pencil row is now editable. Return/checkmark confirms, Escape or closing the panel discards the unconfirmed draft. The field focuses after attachment and disables autocorrection. A name can be supplied before audio or video, changed while writing, or changed after saving. Saved paired rename uses the no-overwrite primitive and updates session metadata, summary URLs and recent Finder paths. Invalid in-flight text does not block Stop: the last confirmed name remains in use and is shown in the error hint.
+- Each mode retains its last confirmed custom title for subsequent recordings during this app run; collisions are numbered. With no custom title, start still generates a timestamp. Folder preferences and full history are separate increments.
+- Added a component case for repeated saved-pair renames, collisions, retained bytes and metadata, and invalid-name refusal. All **48 component cases (36 functions)** and native build/signature pass; diff self-review completed (`artifacts/name-ui-tests.log`, `name-ui-build.log`).
+- Fresh Accessibility/screen/input preflight passed. Actual scoped AX controls, foreground-checked HID Unicode text, Command+A and Return/Escape keyboard events exercised the normal app. These tests do not call a hidden rename diagnostic action.
+
+| Native GUI flow | Real duration / audio frames | Evidence under artifacts/gui-validation |
+|---|---|---|
+| Audio: cancel/invalid name, Chinese title before/during recording, saved collision rename | 4.209020833s /202033 | name-audio-result.json |
+| Region video: initial/in-flight Chinese title, Stop with invalid draft, saved paired collision rename | 5.613375s /269442 | name-video-result.json |
+
+- Renaming preserved the full SHA-256 of each encoded file. All renamed media fully decodes; the video's two decoded audio streams are byte-identical and contain269442 samples. Existing collision fixtures were preserved, old renamed paths disappeared, and the session manifests contain the new actual paths. Actual Quit was verified by process exit. Raw test recordings remain local.
+- GUI testing found and fixed two shell issues: the accessory app had no Edit menu, so Command+A selected zero characters; a transient NSPopover consumed Escape before SwiftUI's handler, retaining an unconfirmed draft. The app now provides standard responder edit commands and cancels the draft when its main popover closes. Deferred focus was verified on the final video build by AXFocused=true after one pencil click.
+- Harness limitations were kept separate from product results: AXSetValue changed the displayed text without triggering SwiftUI's binding, so tests use real text input. Redundant frontmost activation and closed-popover animation timing interrupted some observations. The video was already safely stopped; saved rename continued on those same files (name-video-gui.log → name-video-rename-hid.log), without restarting capture or changing its reported duration. No keyboard/GUI success is inferred solely from an action's return code.
+
+![Actual native filename editor](screenshots/native-filename-editor.png)
+![Actual native panel after paired saved rename](screenshots/native-filename-saved.png)
+
 ## Remaining acceptance
 
-Editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+Destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
