@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private let recorder = AudioRecorder(defaults: .standard, historyStore: .standard)
+    private let history = RecordingHistoryModel(store: .standard)
+    private var lastHistoryState = AudioRecorder.State.idle
     private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
     private var terminationSignal: DispatchSourceSignal?
@@ -35,12 +37,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         capturePicker.onChange = { [weak self] in self?.writeUIReport() }
         popover.behavior = .transient
         popover.delegate = self
-        installPanel(RecorderPanel(recorder: recorder, onQuit: { [weak self] in self?.requestQuit() },
+        installPanel(RecorderPanel(recorder: recorder, history: history, onQuit: { [weak self] in self?.requestQuit() },
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
-                                   onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) }))
+                                   onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
+                                   onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
+                                   onRevealHistory: { [weak self] id in self?.revealHistory(id) }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
+            if self.recorder.state != self.lastHistoryState {
+                self.lastHistoryState = self.recorder.state
+                if [.recording, .completed, .failed].contains(self.recorder.state) { self.refreshHistory() }
+            }
             guard self.systemCheck == nil, self.terminationDeferred, !self.recorder.state.active else { return }
             self.terminationDeferred = false
             DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
@@ -70,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         writeUIReport()
         startCheckIfRequested()
+        if systemCheck == nil { refreshHistory(discover: true) }
         if CommandLine.arguments.contains("--show-panel") {
             showPanel()
         }
@@ -114,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "audioDirectory": recorder.destination(for: .audio).path,
             "videoDirectory": recorder.destination(for: .video).path,
             "choosingDirectory": directoryPicker != nil,
+            "historyCount": history.entries.count,
+            "historyLoading": history.isLoading,
+            "historyError": history.errorMessage ?? history.discoveryMessage ?? "",
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
@@ -263,11 +275,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         directoryPicker = nil
         guard !isQuitting else { return }
         if response == .OK, let url = picker.url {
-            do { try await recorder.setDestination(url, for: mode) }
+            do { try await recorder.setDestination(url, for: mode); refreshHistory(discover: true) }
             catch { recorder.reportControlMessage("无法更改保存位置：\(error.localizedDescription)") }
         }
         writeUIReport()
         showPanel()
+    }
+
+    private func refreshHistory(discover: Bool = false) {
+        guard systemCheck == nil, !isQuitting else { return }
+        let folders = discover ? Array(Set(RecordingMode.allCases.flatMap {
+            [RecordingDestination.defaultURL(for: $0), recorder.destination(for: $0)]
+        } + [RecordingDestination.defaultURL(for: .audio).deletingLastPathComponent()])) : []
+        Task { [weak self] in
+            guard let self else { return }
+            await self.history.refresh(discovering: folders)
+            self.writeUIReport()
+        }
+    }
+
+    private func revealHistory(_ id: UUID) {
+        Task { [weak self] in
+            guard let self else { return }
+            let files = await self.history.filesForReveal(id)
+            if !files.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(files) }
+            self.writeUIReport()
+        }
     }
 
     private func installPanel<Content: View>(_ content: Content) {
@@ -292,5 +325,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        refreshHistory()
     }
 }
