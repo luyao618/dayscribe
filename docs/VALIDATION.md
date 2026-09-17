@@ -453,6 +453,15 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Offscreen native view of partially saved recording](screenshots/rendered-saved-interruption-partial.png)
 
+## Capture interruption versus completed video files — 2026-09-18
+
+- The first actual two-hour trial stopped at **5485.548 s (91m26s)** because the native test fixture crashed in CoreText/NSString drawing (`VideoSyncFixture`, uncaught NSInvalidArgumentException). The Scriber process detected its disappearing target, saved the standalone audio and retained raw MP4. This is a **failed two-hour trial**, not completed endurance acceptance. Audio endurance continued independently.
+- Investigation found that ScreenVideoOutput threw its capture warning after AVAssetWriter had successfully closed the video. The recorder therefore treated a usable closed video as unfinished. Encoder-close success now controls publication; the separate capture warning is preserved in session metadata and the failed/warning UI state. Failed encoders and missing tracks remain unpublished. No new held pictures are generated after blank/suspended/stopped capture.
+- Three native codec/decode cases cover those interrupted statuses with prior valid audio/video. All **114 component cases (100 functions)** and Release build/signature passed (`artifacts/interrupted-video-tests.log`, `interrupted-video-build.log`).
+- Actual target termination now publishes a readable pair with its interruption warning: **3.4485 s /165528 audio frames /100 video frames**, full FFmpeg decode and identical PCM. SCK may deliver a frame-state interruption or a native no-target delegate error; both are retained. Evidence: `window-close-publication-final.log`, `window-close-publication-6w_22jw8/verified.json`.
+- A separate real256KiB process file-size limit still fails the video encoder and publishes only usable audio: **2.376458333 s /114070 frames**. This confirms the change does not call an encoding failure saved. Evidence: `video-write-failure.log`, `video-write-failure-ht_slwcu/verified.json`.
+- Production session recovery published the first trial's retained video while reusing its saved M4A. Both fully decode with identical paired PCM; all original media hashes are unchanged (`video-endurance-yrejmrnt/recovery-verified.json`, `original-media-hashes.json`). The recovered91m file is retained as failure/recovery evidence. Recovery RSS was observed at about2.6GiB in one sample; attribution remains to be investigated separately. The fixture rendering fix and a new complete two-hour run are next.
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.
