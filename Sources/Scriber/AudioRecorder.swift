@@ -31,6 +31,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var lastSavedDuration = ""
     @Published private(set) var audioDevices: AudioDeviceSnapshot?
     @Published private(set) var deviceReadError: String?
+    @Published private(set) var sourceFailures: [AudioSource: String] = [:]
     @Published private(set) var recordingTitle = ""
     @Published private(set) var destinationDirectories: [RecordingMode: URL] = [:]
     private(set) var recordingDirectory: URL?
@@ -55,6 +56,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var captureFilter: SCContentFilter?
     private var microphoneDeviceID: String?
     private var deviceMonitor: AudioDeviceMonitor?
+    private var pendingSourceFailures: [AudioSource: (SCStream, String)] = [:]
+    private var sourceFailureHistory: [AudioSource: String] = [:]
+    private var sourceStartTimes: [AudioSource: Double] = [:]
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
     private let historyStore: RecordingHistoryStore?
@@ -85,6 +89,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func sourceDeviceHelp(_ source: AudioSource) -> String {
+        if let failure = sourceFailures[source], sources.contains(source) { return failure }
         if let deviceReadError { return deviceReadError }
         let name = sourceDeviceName(source)
         if source == .system { return "系统默认输出：\(name)；电脑声音采集系统播放的声音。" }
@@ -104,6 +109,13 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     var isRecording: Bool { state == .recording }
+    var sourceFailureMessage: String? {
+        guard isRecording, !sourceFailures.isEmpty else { return nil }
+        if sources.allSatisfy({ sourceFailures[$0] != nil }) { return "所选声音均已中断，正在结束录制。" }
+        let failed = AudioSource.allCases.filter { sourceFailures[$0] != nil }
+            .map { $0 == .system ? "电脑声音" : "麦克风" }.joined(separator: "、")
+        return "\(failed)采集中断，其余声音继续录制。"
+    }
     var isBusy: Bool { state == .authorizing || state == .finishing }
     var elapsedText: String {
         let seconds = Int(summary?.duration ?? 0)
@@ -113,6 +125,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
 
     func sourcePower(_ source: AudioSource) -> Float? {
         guard isRecording, sources.contains(source),
+              sourceFailures[source] == nil,
               let last = captureMetrics.lastTimes[source],
               CMClockGetTime(CMClockGetHostTimeClock()).seconds - last < 1 else { return nil }
         return captureMetrics.powerDBFS[source]
@@ -120,6 +133,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
 
     func sourceStatus(_ source: AudioSource) -> String {
         guard sources.contains(source) else { return "已关闭" }
+        if sourceFailures[source] != nil { return "采集中断" }
         if isChangingSources { return "正在切换" }
         if state == .failed { return "录音异常" }
         if isBusy { return state == .authorizing ? "等待授权" : "正在保存" }
@@ -185,10 +199,15 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         guard selected != sources else { return true }
         if !state.active {
             sources = selected
+            sourceFailures = sourceFailures.filter { selected.contains($0.key) }
             saveSourcePreference()
             return true
         }
         guard let output, let captureFilter else { return false }
+        guard selected.contains(where: { sourceFailures[$0] == nil }) else {
+            controlMessage = "另一路声音尚未恢复，请保留仍在工作的声音来源。"
+            return false
+        }
         let token = generation
         isChangingSources = true
         defer { isChangingSources = false; onUpdate?() }
@@ -213,6 +232,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             try await output.completeSources(selected)
             guard generation == token, isRecording else { return false }
             sources = selected
+            sourceFailures = sourceFailures.filter { selected.contains($0.key) }
             captureMetrics = await output.snapshot()
             saveSourcePreference()
             return true
@@ -249,6 +269,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         try capture.addStreamOutput(output, type: source == .system ? .audio : .microphone,
                                     sampleHandlerQueue: output.writer.queue)
         streams[source] = capture
+        sourceStartTimes[source] = CMClockGetTime(CMClockGetHostTimeClock()).seconds
+        sourceFailures[source] = nil
+        await output.bind(source, to: ObjectIdentifier(capture))
+        guard streams[source] === capture else { return }
         try await capture.startCapture()
         if streams[source] !== capture { try? await capture.stopCapture() }
     }
@@ -268,6 +292,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         interrupted = false
         controlMessage = nil
         captureMetrics = AudioCaptureMetrics()
+        sourceFailures = [:]
+        sourceFailureHistory = [:]
+        pendingSourceFailures = [:]
+        sourceStartTimes = [:]
         self.sources = sources
         self.microphoneDeviceID = microphoneDeviceID ?? AVCaptureDevice.default(for: .audio)?.uniqueID
         summary = nil
@@ -299,8 +327,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 default: authorized = false
                 }
                 guard generation == token, state == .authorizing else { return }
-                guard authorized else {
-                    throw AudioWriteError.encoding("请在系统设置 → 隐私与安全性 → 麦克风中允许 Scriber。")
+                if !authorized {
+                    let message = "请在系统设置 → 隐私与安全性 → 麦克风中允许 Scriber。"
+                    guard sources.contains(.system) else { throw AudioWriteError.encoding(message) }
+                    sourceFailures[.microphone] = message
+                    sourceFailureHistory[.microphone] = message
                 }
             }
             if !CGPreflightScreenCaptureAccess(), !CGRequestScreenCaptureAccess() {
@@ -361,9 +392,17 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             output = handler
             captureFilter = filter
             for source in AudioSource.allCases where sources.contains(source) {
-                try await startSource(source, output: handler, filter: filter)
+                if sourceFailures[source] != nil { await handler.retire(source) }
+                else {
+                    do { try await startSource(source, output: handler, filter: filter) }
+                    catch {
+                        guard generation == token, state == .authorizing else { return }
+                        await isolateSource(source, message: Self.captureMessage(error), output: handler)
+                    }
+                }
                 guard generation == token, state == .authorizing else { return }
             }
+            guard !streams.isEmpty else { throw AudioWriteError.encoding("所选声音来源均无法采集。") }
             state = .recording
             onUpdate?()
             progress = Task { [weak self] in
@@ -386,6 +425,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                     self.onUpdate?()
                     if let message = self.captureMetrics.errorMessage { await self.stop(error: message); return }
                     if let error { await self.stop(error: error.localizedDescription); return }
+                    await self.checkSourceFailures()
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
@@ -400,13 +440,16 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         controlMessage = nil
         generation = UUID()
         self.interrupted = interrupted
-        errorMessage = error
+        let sourceErrors = AudioSource.allCases.compactMap { sourceFailureHistory[$0] }.joined(separator: "\n")
+        let messages = [error, sourceErrors.isEmpty ? nil : "录制期间有声音中断。\n" + sourceErrors].compactMap { $0 }
+        errorMessage = messages.isEmpty ? nil : messages.joined(separator: "\n")
         state = .finishing
         progress?.cancel()
         progress = nil
         onUpdate?()
         let activeStreams = Array(streams.values)
         streams.removeAll()
+        pendingSourceFailures.removeAll()
         captureFilter = nil
         if let capture = videoStream {
             videoStream = nil
@@ -498,13 +541,64 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
-        let identity = ObjectIdentifier(stream)
         let message = Self.captureMessage(error)
-        Task { @MainActor [weak self] in
-            guard let self, (self.streams.values.contains(where: { ObjectIdentifier($0) == identity })
-                              || self.videoStream.map({ ObjectIdentifier($0) == identity }) == true) else { return }
-            await self.stop(error: message)
+        let reference = CaptureStreamReference(stream)
+        Task { @MainActor [weak self, reference] in
+            // Retain the callback's stream until it is compared, so a new
+            // stream cannot reuse the old object's address in the meantime.
+            let stream = reference.stream
+            guard let self else { return }
+            if self.videoStream === stream {
+                await self.stop(error: message)
+            } else if let source = self.streams.first(where: { $0.value === stream })?.key {
+                self.pendingSourceFailures[source] = (stream, message)
+            }
         }
+    }
+
+    /// Stop a real stream through the diagnostic entry point, exercising the
+    /// same isolation path as a stream failure without changing system devices.
+    func interruptSourceForDiagnostic(_ source: AudioSource, reportFailure: Bool = true) async {
+        guard isRecording, let capture = streams[source] else { return }
+        try? await capture.stopCapture()
+        guard isRecording, streams[source] === capture else { return }
+        if reportFailure { pendingSourceFailures[source] = (capture, "诊断中停止了采集流。") }
+    }
+
+    private func checkSourceFailures() async {
+        guard isRecording, !isChangingSources, let output else { return }
+        let token = generation
+        let now = CMClockGetTime(CMClockGetHostTimeClock()).seconds
+        for (source, capture) in streams {
+            let last = captureMetrics.lastTimes[source] ?? sourceStartTimes[source] ?? now
+            if now - last > 1 {
+                pendingSourceFailures[source] = (capture, "超过 1 秒未收到声音数据。")
+            }
+        }
+        guard !pendingSourceFailures.isEmpty else { return }
+        isChangingSources = true
+        defer { isChangingSources = false; onUpdate?() }
+        let failures = pendingSourceFailures
+        pendingSourceFailures.removeAll()
+        for (source, (capture, message)) in failures {
+            guard streams[source] === capture else { continue }
+            await isolateSource(source, message: message, output: output)
+            guard generation == token, isRecording else { return }
+        }
+        captureMetrics = await output.snapshot()
+        guard generation == token, isRecording else { return }
+        if streams.isEmpty { await stop(error: "所有声音来源均已中断，录制已结束。") }
+    }
+
+    private func isolateSource(_ source: AudioSource, message: String, output: MixedAudioOutput) async {
+        let name = source == .system ? "电脑声音" : "麦克风"
+        sourceFailures[source] = "\(name)：\(message)"
+        sourceFailureHistory[source] = sourceFailures[source]
+        sourceStartTimes[source] = nil
+        let capture = streams.removeValue(forKey: source)
+        await output.retire(source)
+        if let capture { try? await capture.stopCapture() }
+        onUpdate?()
     }
 
     private nonisolated static func captureMessage(_ error: any Error) -> String {
@@ -514,4 +608,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         }
         return error.localizedDescription
     }
+}
+
+// Transfer only a retained reference from the SCK callback for identity checks.
+// All stream operations stay on AudioRecorder's main actor.
+private final class CaptureStreamReference: @unchecked Sendable {
+    let stream: SCStream
+    init(_ stream: SCStream) { self.stream = stream }
 }

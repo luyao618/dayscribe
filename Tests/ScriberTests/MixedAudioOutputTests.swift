@@ -154,4 +154,56 @@ struct MixedAudioOutputTests {
         await #expect(throws: AudioWriteError.noSamples) { try await writer.finish() }
         #expect(await output.snapshot().errorMessage != nil)
     }
+
+    @Test func failedSourceRetirementDropsLateTailAndObsoleteStreamCallbacks() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioSampleWriter(url: url)
+        let output = try MixedAudioOutput(writer: writer, sources: [.system, .microphone])
+        let oldStream = NSObject(), replacement = NSObject()
+        await output.bind(.microphone, to: ObjectIdentifier(oldStream))
+        let base: Int64 = 500 * 48_000
+        for start in stride(from: 0, to: 144_000, by: 480) {
+            if start == 96_000 {
+                // The healthy source has advanced one second beyond the failed
+                // converter. Its unconverted tail cannot be appended now.
+                await output.retire(.microphone)
+                #expect(await output.snapshot().lastTimes[.microphone] == nil)
+                try await output.prepareSources([.system, .microphone], at: CMTime(value: base + Int64(start), timescale: 48_000))
+                await output.bind(.microphone, to: ObjectIdentifier(replacement))
+                let stale = try nativeMicrophone(at: base + 48_000)
+                writer.queue.sync { output.append(stale, source: .microphone, identity: ObjectIdentifier(oldStream)) }
+            }
+            let system = try MixedAudioOutput.sample(stereo: Array(repeating: 0.1, count: 960), at: base + Int64(start))
+            writer.queue.sync { output.append(system, source: .system) }
+            if start < 48_000 || start >= 96_000 {
+                let sample = try nativeMicrophone(at: base + Int64(start))
+                let identity = ObjectIdentifier(start < 48_000 ? oldStream : replacement)
+                writer.queue.sync { output.append(sample, source: .microphone, identity: identity) }
+            }
+        }
+        try await output.finish()
+        let result = try await writer.finish()
+        let metrics = await output.snapshot()
+        #expect(result.frames == 144_000 && metrics.errorMessage == nil)
+        #expect(metrics.receivedFrames[.microphone] == 32_000)
+        #expect(metrics.nativeRates[.microphone] == 16_000)
+        #expect(metrics.maximumClockSkewFrames[.microphone] == 0)
+    }
+
+    @Test func retiringMissingStartupSourcePreservesBufferedSurvivingAudio() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioSampleWriter(url: url)
+        let output = try MixedAudioOutput(writer: writer, sources: [.system, .microphone])
+        for frame in stride(from: 0, through: 48_000, by: 480) {
+            if frame == 48_000 { await output.retire(.microphone) }
+            let sample = try MixedAudioOutput.sample(stereo: Array(repeating: 0.1, count: 960), at: 500 * 48_000 + Int64(frame))
+            writer.queue.sync { output.append(sample, source: .system) }
+        }
+        try await output.finish()
+        #expect(try await writer.finish().frames == 48_480)
+        #expect(await output.snapshot().errorMessage == nil)
+        #expect(await output.snapshot().nativeFrames[.microphone] == nil)
+    }
 }

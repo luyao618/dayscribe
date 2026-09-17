@@ -31,6 +31,7 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private var segments: [AudioSource: ConvertedSegment] = [:]
     private var metrics = AudioCaptureMetrics()
     private var closed = false
+    private var streamIdentities: [AudioSource: ObjectIdentifier] = [:]
 
     init(writer: AudioSampleWriter, sources: Set<AudioSource>, epoch: CMTime? = nil,
          onMixedSample: ((CMSampleBuffer) -> Void)? = nil) throws {
@@ -44,8 +45,46 @@ final class MixedAudioOutput: NSObject, SCStreamOutput, @unchecked Sendable {
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
                 of type: SCStreamOutputType) {
-        if type == .audio { append(sampleBuffer, source: .system) }
-        if type == .microphone { append(sampleBuffer, source: .microphone) }
+        let source: AudioSource
+        switch type {
+        case .audio: source = .system
+        case .microphone: source = .microphone
+        default: return
+        }
+        append(sampleBuffer, source: source, identity: ObjectIdentifier(stream))
+    }
+
+    func append(_ sample: CMSampleBuffer, source: AudioSource, identity: ObjectIdentifier) {
+        dispatchPrecondition(condition: .onQueue(writer.queue))
+        guard streamIdentities[source] == identity else { return }
+        append(sample, source: source)
+    }
+
+    func bind(_ source: AudioSource, to identity: ObjectIdentifier) async {
+        await withCheckedContinuation { continuation in
+            writer.queue.async {
+                self.streamIdentities[source] = identity
+                continuation.resume()
+            }
+        }
+    }
+
+    /// A failed source may be far behind the surviving source's committed PCM.
+    /// Discard its converter tail rather than append stale samples retroactively.
+    /// Already buffered valid PCM remains in the common timeline.
+    func retire(_ source: AudioSource) async {
+        await withCheckedContinuation { continuation in
+            writer.queue.async {
+                self.streamIdentities[source] = nil
+                self.segments[source] = nil
+                self.sources.remove(source)
+                self.startup.removeAll { $0.source == source }
+                self.startupBytes = self.startup.reduce(0) { $0 + CMSampleBufferGetTotalSampleSize($1.sample) }
+                self.metrics.powerDBFS[source] = -160
+                self.metrics.lastTimes[source] = nil
+                continuation.resume()
+            }
+        }
     }
 
     func append(_ sample: CMSampleBuffer, source: AudioSource) {
