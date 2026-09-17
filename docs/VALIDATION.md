@@ -188,6 +188,13 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 ![Actual native saved panel, desktop window capture](screenshots/native-panel-gui.png)
 ![Ready native video panel, offscreen render](screenshots/native-video-ready.png)
 
+## Closed recording file safety — 2026-09-17
+
+- `RecordingFileSet` relocates a closed M4A or MP4/M4A pair with a shared basename. Unicode names are normalized; empty/hidden/path/control/overlong names are rejected. A collision in either extension advances the whole pair to the same numbered suffix. macOS `RENAME_EXCL` enforces no overwrite at the actual move, including a collision arriving after preflight.
+- Seven new filesystem cases pass: name validation; existing file/dangling-link collisions and unchanged-name operation; collision during the second move; injected disk-full rollback; rollback blocked by a new source occupant; invalid/missing/aliased/symlink inputs and absent destination; concurrent paired saves. Tests use real temporary directories and exclusive moves; disk-full/access errors are injected at the move boundary, not claimed as physical disk-exhaustion tests. Failure results retain per-file locations, including a split pair after failed rollback. No recordings or directories are deleted.
+- Existing generated-codec cases now relocate their closed outputs before decoding. Four audio variants retain duration/decoded samples; three MP4/M4A variants retain H.264/AAC, picture timing and matching tone onset after paired relocation. All **43 component cases (31 functions)** pass. Local evidence: `artifacts/file-set-tests.log`.
+- This increment is the tested file-operation primitive. The recorder still uses its existing output paths until the next session/UI integration PR; no filename/path controls or crash recovery are claimed here. Pair movement is not an atomic filesystem transaction, and cross-volume moves deliberately fail without copying/deleting. Session staging must be created on the destination volume.
+
 ## Remaining acceptance
 
 Editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
