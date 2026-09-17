@@ -75,6 +75,7 @@ final class AudioSampleWriter: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(queue))
         guard !closing, failure == nil else { return }
         do {
+            if let error = encoderFailure { throw error }
             guard sample.isValid, sample.dataReadiness == .ready,
                   let description = sample.formatDescription,
                   CMFormatDescriptionGetMediaType(description) == kCMMediaType_Audio else {
@@ -97,7 +98,7 @@ final class AudioSampleWriter: @unchecked Sendable {
                 writer.startSession(atSourceTime: time)
             }
             let levels = try Self.levels(sample, format: format)
-            guard input.isReadyForMoreMediaData else { throw AudioWriteError.backpressure }
+            guard input.isReadyForMoreMediaData else { throw encoderFailure ?? .backpressure }
             guard input.append(sample) else {
                 throw AudioWriteError.encoding(writer.error?.localizedDescription ?? "无法写入音频数据")
             }
@@ -123,7 +124,10 @@ final class AudioSampleWriter: @unchecked Sendable {
 
     func snapshot() async -> (AudioWriteSummary, AudioWriteError?) {
         await withCheckedContinuation { continuation in
-            queue.async { continuation.resume(returning: (self.summary, self.failure)) }
+            queue.async {
+                self.failure = self.failure ?? self.encoderFailure
+                continuation.resume(returning: (self.summary, self.failure))
+            }
         }
     }
 
@@ -167,6 +171,12 @@ final class AudioSampleWriter: @unchecked Sendable {
                           duration: firstTime.flatMap { first in lastEnd.map { ($0 - first).seconds } } ?? 0,
                           powerDBFS: powerDBFS,
                           peakDBFS: peakDBFS)
+    }
+
+    // AVAssetWriter may fail asynchronously after accepting the last sample.
+    // Poll its status even when no subsequent append reaches the encoder.
+    private var encoderFailure: AudioWriteError? {
+        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? "音频写入已失败") : nil
     }
 
     static func levels(_ sample: CMSampleBuffer, format: AVAudioFormat) throws -> (power: Float, peak: Float) {

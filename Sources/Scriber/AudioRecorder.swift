@@ -68,12 +68,17 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
     private var sessionLease: RecordingSessionLease?
+    private var storageMonitor: Task<Void, Never>?
+    private let readStorage: @Sendable (URL) throws -> RecordingStorage
+    private(set) var availableStorageBytes: UInt64?
     private let historyStore: RecordingHistoryStore?
     var sessionID: UUID? { sessionFiles?.id }
 
-    init(defaults: UserDefaults? = nil, historyStore: RecordingHistoryStore? = nil) {
+    init(defaults: UserDefaults? = nil, historyStore: RecordingHistoryStore? = nil,
+         readStorage: @escaping @Sendable (URL) throws -> RecordingStorage = { try RecordingStorage.read($0) }) {
         self.defaults = defaults
         self.historyStore = historyStore
+        self.readStorage = readStorage
         super.init()
         destinationDirectories = Dictionary(uniqueKeysWithValues: RecordingMode.allCases.map {
             ($0, RecordingDestination.restored(from: defaults, for: $0))
@@ -371,6 +376,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         recordingTitle = ""
         recordingDirectory = folder
         sessionFiles = nil
+        availableStorageBytes = nil
         videoSummary = nil
         videoEpochHostTime = nil
         captureTargetTitle = ""
@@ -385,6 +391,15 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             date.locale = Locale(identifier: "en_US_POSIX")
             date.dateFormat = "yyyy-MM-dd HH.mm.ss"
             recordingTitle = try RecordingFilename.validated(title ?? "\(recordScreen ? "录屏" : "录音") \(date.string(from: Date()))")
+            let reading = readStorage
+            let initialStorage = try await Task.detached {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let result = try reading(folder)
+                try result.validate(video: recordScreen)
+                return result
+            }.value
+            guard generation == token, state == .authorizing else { return }
+            availableStorageBytes = initialStorage.availableBytes
             if sources.contains(.microphone) {
                 let authorized: Bool
                 switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -411,7 +426,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
             let desiredTitle = recordingTitle
             let owned = try await Task.detached {
-                try RecordingSessionFiles.begin(directory: folder, title: desiredTitle, video: recordScreen)
+                // Authorization can take time; recheck immediately before opening
+                // the session, including that the selected volume is unchanged.
+                try reading(folder).validate(video: recordScreen, expectedVolume: initialStorage.volumeID)
+                return try RecordingSessionFiles.begin(directory: folder, title: desiredTitle, video: recordScreen)
             }.value
             guard generation == token, state == .authorizing else { return }
             let session = owned.session
@@ -472,6 +490,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
             guard !streams.isEmpty else { throw AudioWriteError.encoding("所选声音来源均无法采集。") }
             state = .recording
+            monitorStorage(directory: session.stagingDirectory, video: recordScreen, volume: initialStorage.volumeID, token: token)
             onUpdate?()
             progress = Task { [weak self] in
                 while !Task.isCancelled {
@@ -514,6 +533,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         state = .finishing
         progress?.cancel()
         progress = nil
+        storageMonitor?.cancel()
+        storageMonitor = nil
         onUpdate?()
         let activeStreams = Array(streams.values)
         streams.removeAll()
@@ -599,6 +620,25 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         if let videoSummary, let videoURL {
             self.videoSummary = .init(url: videoURL, videoFrames: videoSummary.videoFrames,
                                       audioFrames: videoSummary.audioFrames, duration: videoSummary.duration)
+        }
+    }
+
+    private func monitorStorage(directory: URL, video: Bool, volume: String, token: UUID) {
+        let reading = readStorage
+        storageMonitor = Task { [weak self] in
+            while !Task.isCancelled {
+                let result = await Task.detached(priority: .utility) { Result { try reading(directory) } }.value
+                guard !Task.isCancelled, let self, self.generation == token, self.isRecording else { return }
+                do {
+                    let storage = try result.get()
+                    self.availableStorageBytes = storage.availableBytes
+                    try storage.validate(video: video, expectedVolume: volume)
+                } catch {
+                    await self.stop(error: error.localizedDescription)
+                    return
+                }
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
         }
     }
 
