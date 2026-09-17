@@ -232,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "playbackError": playback.errorMessage ?? "",
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "availableStorageBytes": recorder.availableStorageBytes ?? 0,
+            "powerProtectionActive": recorder.powerProtectionActive,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
             "sources": recorder.sources.map { $0.rawValue }.sorted(),
