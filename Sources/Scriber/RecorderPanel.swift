@@ -8,13 +8,14 @@ extension Notification.Name {
 struct RecorderPanel: View {
     @ObservedObject var recorder: AudioRecorder
     @ObservedObject var history = RecordingHistoryModel()
+    @ObservedObject var playback = RecordingPlaybackModel()
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
     var onStartVideo: ((CaptureKind, String?) async -> Void)? = nil
     var onChooseDirectory: ((RecordingMode) async -> Void)? = nil
     var onRefreshHistory: (() -> Void)? = nil
-    var onRevealHistory: ((UUID) -> Void)? = nil
+    var onRevealHistory: ((UUID, RecordingFileKind?) -> Void)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
@@ -25,12 +26,18 @@ struct RecorderPanel: View {
     @FocusState private var nameFocused: Bool
     @State private var showsDestinations = false
     @State private var showsHistory = false
+    @State private var detailID: UUID?
+    @State private var historyQuery = ""
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsHistory {
+            if detailID != nil {
+                RecordingDetailPanel(playback: playback, onBack: { detailID = nil; showsHistory = true },
+                                     onReveal: { onRevealHistory?($0, $1) })
+            } else if showsHistory {
                 RecordingHistoryPanel(history: history, recorder: recorder, onBack: { showsHistory = false },
-                                      onRefresh: { onRefreshHistory?() }, onReveal: { onRevealHistory?($0) })
+                                      onRefresh: { onRefreshHistory?() }, onOpen: openDetail,
+                                      onReveal: { onRevealHistory?($0, nil) }, query: $historyQuery)
             } else if showsDestinations {
                 RecordingDestinationsPanel(recorder: recorder, onBack: { showsDestinations = false },
                                            onChoose: onChooseDirectory)
@@ -85,7 +92,7 @@ struct RecorderPanel: View {
                 .tracking(-0.5)
             Spacer()
             HStack(spacing: 6) {
-                Button { showsHistory = true; onRefreshHistory?() } label: { Image(systemName: "clock.arrow.circlepath") }
+                Button { historyQuery = ""; showsHistory = true; onRefreshHistory?() } label: { Image(systemName: "clock.arrow.circlepath") }
                     .buttonStyle(PanelIconButtonStyle())
                     .disabled(!history.isAvailable)
                     .help("查看录制历史")
@@ -374,7 +381,7 @@ struct RecorderPanel: View {
             HStack {
                 Text("最近录制").fontWeight(.semibold)
                 Spacer()
-                Button("查看全部 ›") { showsHistory = true; onRefreshHistory?() }
+                Button("查看全部 ›") { historyQuery = ""; showsHistory = true; onRefreshHistory?() }
                     .buttonStyle(.plain).disabled(!history.isAvailable)
                     .help("查看录制历史")
             }
@@ -382,7 +389,7 @@ struct RecorderPanel: View {
             .foregroundStyle(PanelPalette.slate)
             .padding(.bottom, 9)
             if let entry = history.entries.first(where: { $0.fileStates.values.contains(.available) }) {
-                RecordingHistoryRow(entry: entry, recorder: recorder) { onRevealHistory?(entry.id) }
+                RecordingHistoryRow(entry: entry, recorder: recorder, onOpen: { openDetail(entry.id) }) { onRevealHistory?(entry.id, nil) }
             } else if let url = recorder.lastSavedURL {
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting(recorder.lastSavedFiles)
@@ -419,6 +426,12 @@ struct RecorderPanel: View {
             }
         }
         .padding(.top, 17)
+    }
+
+    private func openDetail(_ id: UUID) {
+        if !showsHistory { historyQuery = "" }
+        detailID = id
+        playback.open(id)
     }
 
     private var recordingIcon: some View {

@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private let recorder = AudioRecorder(defaults: .standard, historyStore: .standard)
     private let history = RecordingHistoryModel(store: .standard)
+    private let playback = RecordingPlaybackModel(store: .standard)
     private var lastHistoryState = AudioRecorder.State.idle
     private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
@@ -37,11 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         capturePicker.onChange = { [weak self] in self?.writeUIReport() }
         popover.behavior = .transient
         popover.delegate = self
-        installPanel(RecorderPanel(recorder: recorder, history: history, onQuit: { [weak self] in self?.requestQuit() },
+        playback.onUpdate = { [weak self] in self?.writeUIReport() }
+        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, onQuit: { [weak self] in self?.requestQuit() },
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
                                    onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
                                    onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
-                                   onRevealHistory: { [weak self] id in self?.revealHistory(id) }))
+                                   onRevealHistory: { [weak self] id, kind in self?.revealHistory(id, kind: kind) }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
@@ -85,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func popoverWillClose(_ notification: Notification) {
+        playback.suspend()
         NotificationCenter.default.post(name: .scriberPanelClosing, object: nil)
     }
 
@@ -126,6 +129,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "historyCount": history.entries.count,
             "historyLoading": history.isLoading,
             "historyError": history.errorMessage ?? history.discoveryMessage ?? "",
+            "playbackID": playback.entry?.id.uuidString ?? "",
+            "playbackKind": playback.selectedKind?.rawValue ?? "",
+            "playbackLoading": playback.isLoading,
+            "playbackPlaying": playback.isPlaying,
+            "playbackRate": playback.player.rate,
+            "playbackPosition": playback.position,
+            "playbackDuration": playback.duration,
+            "playbackError": playback.errorMessage ?? "",
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
@@ -162,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         isQuitting = true
+        playback.close()
         directoryPicker?.cancel(nil)
         capturePicker.cancel()
         if let systemCheck, systemCheck.recorder.state.active {
@@ -241,6 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func requestQuit() {
         isQuitting = true
+        playback.close()
         directoryPicker?.cancel(nil)
         if let systemCheck, systemCheck.recorder.state.active {
             Task { await systemCheck.stop() }
@@ -294,10 +307,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func revealHistory(_ id: UUID) {
+    private func revealHistory(_ id: UUID, kind: RecordingFileKind? = nil) {
         Task { [weak self] in
             guard let self else { return }
-            let files = await self.history.filesForReveal(id)
+            let files = await self.history.filesForReveal(id).filter { kind == nil || $0.pathExtension == kind?.rawValue }
             if !files.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(files) }
             self.writeUIReport()
         }
@@ -325,6 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        playback.resume()
         refreshHistory()
     }
 }
