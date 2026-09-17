@@ -42,10 +42,16 @@ struct MovieFilePrefix: Sendable {
         var remaining = prefix.copiedBytes
         while remaining > 0 {
             try Task.checkCancellation()
-            let data = try input.read(upToCount: Int(min(remaining, 1024 * 1024))) ?? Data()
-            guard !data.isEmpty else { throw MediaRecoveryError.sourceChanged }
-            try output.write(contentsOf: data)
-            remaining -= UInt64(data.count)
+            // FileHandle creates autoreleased Foundation buffers. A detached
+            // Swift task need not drain a pool between reads, so scope those
+            // objects to one chunk instead of retaining the entire movie.
+            let copied = try autoreleasepool {
+                let data = try input.read(upToCount: Int(min(remaining, 1024 * 1024))) ?? Data()
+                guard !data.isEmpty else { throw MediaRecoveryError.sourceChanged }
+                try output.write(contentsOf: data)
+                return UInt64(data.count)
+            }
+            remaining -= copied
         }
         var final = stat(), current = stat()
         guard fstat(descriptor, &final) == 0,

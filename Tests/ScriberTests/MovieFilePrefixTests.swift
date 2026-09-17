@@ -50,6 +50,19 @@ struct MovieFilePrefixTests {
         #expect(throws: (any Error).self) { try MovieFilePrefix.copy(from: linked, to: root.appendingPathComponent("unused")) }
     }
 
+    @Test func multipleCopyChunksPreserveEveryByteAndLeaveTheSourceUntouched() throws {
+        let root = try directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let payload = Data((0..<(3 * 1024 * 1024 + 17)).map { UInt8(truncatingIfNeeded: $0) })
+        let data = box("ftyp", Data("mp42isom".utf8)) + box("mdat", payload) + box("moov", Data([1]))
+        let source = root.appendingPathComponent("source.mp4"), target = root.appendingPathComponent("prefix.mp4")
+        try data.write(to: source)
+        let result = try MovieFilePrefix.copy(from: source, to: target)
+        #expect(result.copiedBytes == data.count && result.indexedThrough == data.count)
+        #expect(try Data(contentsOf: target) == data)
+        #expect(try Data(contentsOf: source) == data)
+    }
+
     private func box(_ type: String, _ data: Data) -> Data { integer(UInt64(data.count + 8), bytes: 4) + Data(type.utf8) + data }
     private func integer(_ value: UInt64, bytes: Int) -> Data {
         Data((0..<bytes).reversed().map { UInt8(truncatingIfNeeded: value >> ($0 * 8)) })
