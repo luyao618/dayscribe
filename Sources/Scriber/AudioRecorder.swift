@@ -125,7 +125,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
 
     @discardableResult
     func renameSavedRecording(_ title: String) async -> Bool {
-        guard state == .completed, let sessionFiles else { return false }
+        guard state == .completed || state == .failed, let sessionFiles else { return false }
+        let previousState = state
         do { _ = try RecordingFilename.validated(title) }
         catch { controlMessage = error.localizedDescription; return false }
         let files = RecordingFileSet(urls: Dictionary(uniqueKeysWithValues:
@@ -137,7 +138,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         let result = await Task.detached { sessionFiles.renamePublished(files, title: title) }.value
         applyFileFinalization(result)
         controlMessage = result.errorMessage
-        state = .completed
+        state = previousState
         updateRecentFiles()
         onUpdate?()
         return result.errorMessage == nil
@@ -445,8 +446,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     private func applyFileFinalization(_ result: RecordingSessionFiles.Finalization) {
-        outputURL = result.files.urls[.audio]
-        videoURL = result.files.urls[.video]
+        // A failed rename can return only the published subset supplied by the
+        // caller; retain the known locations of unfinished companion files.
+        outputURL = result.files.urls[.audio] ?? outputURL
+        videoURL = result.files.urls[.video] ?? videoURL
         recordingTitle = result.title
         audioSaved = result.published.contains(.audio)
         videoSaved = result.published.contains(.video)

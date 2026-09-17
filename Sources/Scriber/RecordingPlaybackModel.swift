@@ -154,6 +154,15 @@ final class RecordingPlaybackModel: ObservableObject {
         onUpdate?()
     }
 
+    /// Release the media before moving it, retaining the detail's identity/title.
+    func prepareForRename() {
+        let current = entry
+        let kind = selectedKind
+        close()
+        entry = current
+        selectedKind = kind
+    }
+
     private func startMonitor() {
         monitor?.cancel()
         let token = generation
