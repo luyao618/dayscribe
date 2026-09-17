@@ -131,7 +131,7 @@ final class VideoSampleWriter: @unchecked Sendable {
 
     /// Finalizes a valid written prefix even after a rejected sample, then surfaces
     /// that failure. Neither an empty file nor a missing track can report success.
-    func finish() async throws -> VideoWriteSummary {
+    func finish(at endTime: CMTime? = nil) async throws -> VideoWriteSummary {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 guard !self.closing else { continuation.resume(throwing: VideoWriteError.finished); return }
@@ -147,6 +147,14 @@ final class VideoSampleWriter: @unchecked Sendable {
                 guard self.writer.status == .writing else {
                     continuation.resume(throwing: self.failure ?? .encoding(self.writer.error?.localizedDescription ?? "写入已停止"))
                     return
+                }
+                if let endTime {
+                    if self.valid(endTime), endTime >= self.audioEnd,
+                       endTime > (self.lastVideoTime ?? .zero) {
+                        self.videoEnd = endTime
+                    } else {
+                        self.failure = self.failure ?? .invalidTimestamp
+                    }
                 }
                 self.video.markAsFinished()
                 self.audio.markAsFinished()

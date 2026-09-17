@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startCheckIfRequested() {
         let arguments = CommandLine.arguments
-        if let index = ["--system-audio-check", "--mixed-audio-check", "--microphone-check", "--panel-audio-check"]
+        if let index = ["--system-audio-check", "--mixed-audio-check", "--microphone-check", "--panel-audio-check", "--display-video-check"]
             .compactMap({ arguments.firstIndex(of: $0) }).first {
             guard arguments.count > index + 2, arguments[index + 1].hasPrefix("/"),
                   let seconds = Double(arguments[index + 2]), seconds.isFinite, seconds > 0 else {
@@ -120,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 seconds: seconds, sources: sources, microphoneDeviceID: device,
                 switchSources: arguments.contains("--switch-sources"),
                 panelSnapshots: arguments.contains("--panel-snapshots"),
+                recordScreen: arguments.contains("--display-video-check"),
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {

@@ -3,8 +3,8 @@ import Testing
 @testable import Scriber
 
 struct VideoSampleWriterTests {
-    @Test(arguments: [false, true])
-    func preservesOffsetAndSharedAudioAndFinalizesRejectedPrefix(rejectOldFrame: Bool) async throws {
+    @Test(arguments: ["none", "old-frame", "invalid-end"])
+    func preservesOffsetAndSharedAudioAndFinalizesRejectedPrefix(rejection: String) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -31,13 +31,15 @@ struct VideoSampleWriterTests {
             }
             try await Task.sleep(for: .milliseconds(34))
         }
-        if rejectOldFrame {
+        if rejection == "old-frame" {
             #expect(throws: VideoWriteError.invalidTimestamp) {
                 try video.queue.sync { try video.appendVideo(red, at: .zero) }
             }
             await #expect(throws: VideoWriteError.invalidTimestamp) { try await video.finish() }
+        } else if rejection == "invalid-end" {
+            await #expect(throws: VideoWriteError.invalidTimestamp) { try await video.finish(at: .zero) }
         } else {
-            let result = try await video.finish()
+            let result = try await video.finish(at: CMTime(value: 57_600, timescale: 48_000))
             #expect(result.videoFrames == 30 && result.audioFrames == 57_600)
             #expect(abs(result.duration - 1.2) < 0.000001)
         }

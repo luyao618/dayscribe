@@ -14,6 +14,7 @@ import wave
 import os
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--video", action="store_true", help="Record the main display to MP4 plus the same standalone M4A")
 parser.add_argument("--seconds", type=float, default=8)
 parser.add_argument("--interrupt-after", type=float)
 parser.add_argument("--sources", choices=("system", "microphone", "both"), default="system")
@@ -55,7 +56,7 @@ with wave.open(str(stimulus), "wb") as wav:
     wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(48_000)
     wav.writeframes(pcm.tobytes())
 command = ["open", str(project / "build/Scriber.app"), "--args", "--show-panel",
-           "--panel-audio-check" if args.panel else "--mixed-audio-check", str(root), str(args.seconds), "--audio-sources", args.sources]
+           "--display-video-check" if args.video else ("--panel-audio-check" if args.panel else "--mixed-audio-check"), str(root), str(args.seconds), "--audio-sources", args.sources]
 if args.panel:
     command += ["--panel-snapshots"]
 if args.quit_via_appkit:
@@ -119,7 +120,8 @@ probe = json.loads(subprocess.check_output([
 assert probe["streams"][0]["codec_name"] == "aac" and probe["streams"][0]["channels"] == 2, probe
 expected_duration = args.interrupt_after if args.interrupt_after is not None else args.seconds
 (root / "ffprobe.json").write_text(json.dumps(probe, indent=2))
-assert abs(float(probe["format"]["duration"]) - expected_duration) < 0.5, probe
+# Video's common epoch includes bounded stream startup before the diagnostic wait.
+assert abs(float(probe["format"]["duration"]) - expected_duration) < (2 if args.video else 0.5), probe
 subprocess.run(["ffmpeg", "-v", "error", "-i", str(recording), "-f", "null", "-"], check=True)
 decoded = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(recording),
                                    "-t", "16", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"])
@@ -155,3 +157,47 @@ for frequency, other in ((880, 1760), (1760, 880)):
 assert 1.5 < centroids[1760] - centroids[880] < 2.5, centroids
 (root / "spectrum.json").write_text(json.dumps({"power": energies, "centroidSeconds": centroids}, indent=2))
 print(f"PASS: real {args.sources} capture, one decoded M4A, ordered stimulus frequencies: {centroids}")
+
+if args.video:
+    assert result["audioSaved"] and result["videoSaved"], result
+    assert result["screenReceivedFrames"] > 0 and result["videoFrames"] >= result["screenReceivedFrames"], result
+    assert len(list(root.glob("*.mp4"))) == 1
+    video_path = Path(result["videoPath"])
+    assert video_path.with_suffix(".m4a") == recording
+    video_probe = json.loads(subprocess.check_output([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_name,codec_type,width,height,start_time,duration",
+        "-of", "json", str(video_path)], text=True))
+    (root / "video-ffprobe.json").write_text(json.dumps(video_probe, indent=2))
+    assert {x["codec_name"] for x in video_probe["streams"]} == {"h264", "aac"}, video_probe
+    picture = next(x for x in video_probe["streams"] if x["codec_type"] == "video")
+    assert picture["width"] >= 640 and picture["height"] >= 480, picture
+    assert abs(result["durationSeconds"] - result["videoDurationSeconds"]) < 1 / 48000, result
+    assert abs(float(video_probe["format"]["duration"]) - float(probe["format"]["duration"])) < 0.1
+    # Preserve the variable screen-frame timestamps; a guessed constant output
+    # rate can manufacture repeated DTS values in the null muxer.
+    decode = subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(video_path),
+        "-fps_mode", "passthrough", "-enc_time_base:v", "demux", "-f", "null", "-"],
+        capture_output=True, text=True, check=True)
+    assert not decode.stderr, decode.stderr
+    packet_probe = json.loads(subprocess.check_output([
+        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time,dts_time",
+        "-of", "json", str(video_path)], text=True))
+    packet_times = [float(x["pts_time"]) for x in packet_probe["packets"]]
+    dts_times = [float(x["dts_time"]) for x in packet_probe["packets"]]
+    assert all(b > a for a, b in zip(dts_times, dts_times[1:])), dts_times
+    expected_first = result["screenFirstHostTime"] - result["videoEpochHostTime"]
+    assert abs(packet_times[0] - expected_first) < 0.002, (packet_times[0], expected_first)
+    assert all(b > a for a, b in zip(packet_times, packet_times[1:])), packet_times
+    assert len(packet_times) == result["videoFrames"], (len(packet_times), result["videoFrames"])
+    (root / "screen-timeline.json").write_text(json.dumps({"firstCaptureRelativeSeconds": expected_first,
+        "firstPacketSeconds": packet_times[0], "lastPacketSeconds": packet_times[-1], "encodedFrames": len(packet_times)}, indent=2))
+    video_audio = array.array("f")
+    video_audio.frombytes(subprocess.check_output([
+        "ffmpeg", "-v", "error", "-i", str(video_path), "-t", "16", "-vn", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"]))
+    common = min(len(samples), len(video_audio))
+    expected_decoded = min(result["frames"], 16 * 48000)
+    assert len(samples) == len(video_audio) == expected_decoded, (len(samples), len(video_audio), expected_decoded)
+    maximum_error = max(abs(samples[i] - video_audio[i]) for i in range(common))
+    assert maximum_error < 0.0001, maximum_error
+    (root / "paired-audio.json").write_text(json.dumps({"comparedFrames": common, "maximumSampleError": maximum_error}, indent=2))
+    print(f"PASS: actual {picture['width']}x{picture['height']} screen, decoded MP4+M4A, same PCM endpoint and matching decoded audio")

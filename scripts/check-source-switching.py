@@ -11,6 +11,7 @@ import time
 import wave
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--video", action="store_true", help="Keep main-display capture running while switching audio")
 parser.add_argument("--sources", choices=("both", "system", "microphone"), default="both")
 parser.add_argument("--microphone-device")
 args = parser.parse_args()
@@ -25,8 +26,10 @@ signal = array.array("h", (int(1000 * math.sin(i * 880 * 2 * math.pi / 48000)) f
 with wave.open(str(stimulus), "wb") as wav:
     wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(48000)
     wav.writeframes(signal.tobytes())
-command = ["open", str(project / "build/Scriber.app"), "--args", "--show-panel", "--panel-audio-check",
-           str(root), "11", "--audio-sources", args.sources, "--switch-sources", "--panel-snapshots"]
+command = ["open", str(project / "build/Scriber.app"), "--args", "--show-panel", "--display-video-check" if args.video else "--panel-audio-check",
+           str(root), "11", "--audio-sources", args.sources, "--switch-sources"]
+if not args.video:
+    command += ["--panel-snapshots"]
 if args.microphone_device:
     command += ["--microphone-device", args.microphone_device]
 subprocess.run(command, check=True)
@@ -67,7 +70,7 @@ assert recording.parent == root and len(list(root.glob("*.m4a"))) == 1
 subprocess.run(["ffmpeg", "-v", "error", "-i", str(recording), "-f", "null", "-"], check=True)
 decoded = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(recording), "-ac", "1", "-ar", "48000", "-f", "f32le", "-"])
 samples = array.array("f"); samples.frombytes(decoded)
-epoch = min(result["sourceFirstTimes"].values())
+epoch = result["videoEpochHostTime"] if args.video else min(result["sourceFirstTimes"].values())
 events = result["sourceEvents"]
 
 def level(start, end):
@@ -89,7 +92,7 @@ for index, (disabled, active) in enumerate([("microphone", "system"), ("system",
     assert len(trace) >= 3, trace
     assert trace[-1]["receivedFrames"].get(disabled, 0) == trace[0]["receivedFrames"].get(disabled, 0), trace
     assert trace[-1]["receivedFrames"].get(active, 0) > trace[0]["receivedFrames"].get(active, 0), trace
-for filename in ("panel-recording.png", "panel-saved.png"):
+for filename in (() if args.video else ("panel-recording.png", "panel-saved.png")):
     assert (root / filename).is_file(), filename
 deadline = time.monotonic() + 10
 while subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode == 0 and time.monotonic() < deadline:
@@ -97,3 +100,13 @@ while subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode =
 assert subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode != 0, "Capture did not exit"
 (root / "switch-signal.json").write_text(json.dumps({"toneAmplitudes": levels, "intervalsHostTime": intervals}, indent=2))
 print(f"PASS: live source changes, hardware callback stop/restart, one decoded file; tone amplitudes {levels}")
+
+if args.video:
+    assert result["audioSaved"] and result["videoSaved"] and result["screenReceivedFrames"] > 0, result
+    assert Path(result["videoPath"]).with_suffix(".m4a") == recording
+    assert abs(result["durationSeconds"] - result["videoDurationSeconds"]) < 1 / 48000
+    decode = subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", result["videoPath"],
+        "-fps_mode", "passthrough", "-enc_time_base:v", "demux", "-f", "null", "-"],
+        capture_output=True, text=True, check=True)
+    assert not decode.stderr, decode.stderr
+    print("PASS: video continued through audio source changes and both files finalized")

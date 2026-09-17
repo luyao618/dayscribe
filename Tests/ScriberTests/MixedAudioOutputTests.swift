@@ -95,6 +95,35 @@ struct MixedAudioOutputTests {
         #expect(metrics.maximumClockSkewFrames[.microphone] == 0)
     }
 
+    @Test func explicitMediaEpochAndEndpointKeepSharedSamplesAndLeadingSilence() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioSampleWriter(url: url)
+        let epoch = CMTime(value: 100, timescale: 1)
+        var mirroredFrames = 0
+        var firstTimestamp: CMTime?
+        var lastEnd: CMTime?
+        let output = try MixedAudioOutput(writer: writer, sources: [.system], epoch: epoch,
+                                         onMixedSample: { sample in
+            mirroredFrames += sample.numSamples
+            firstTimestamp = firstTimestamp ?? sample.presentationTimeStamp
+            lastEnd = sample.presentationTimeStamp + CMTime(value: Int64(sample.numSamples), timescale: 48_000)
+        })
+        for offset in stride(from: 12_000, to: 24_000, by: 480) {
+            let sample = try MixedAudioOutput.sample(stereo: Array(repeating: 0.1, count: 960),
+                                                     at: 100 * 48_000 + Int64(offset))
+            writer.queue.sync { output.append(sample, source: .system) }
+        }
+        try await output.finish(at: epoch + CMTime(value: 30_000, timescale: 48_000))
+        let summary = try await writer.finish()
+        #expect(summary.frames == 30_000 && summary.duration == 0.625)
+        writer.queue.sync {
+            #expect(mirroredFrames == 30_000)
+            #expect(firstTimestamp == .zero)
+            #expect(lastEnd == CMTime(value: 30_000, timescale: 48_000))
+        }
+    }
+
     private func nativeMicrophone(at frame: Int64) throws -> CMSampleBuffer {
         let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1))
         let pcm = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 160))
