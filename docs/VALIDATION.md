@@ -114,6 +114,13 @@ AAC container durations currently exceed the submitted PCM timelines by about 44
 ![Native panel rendered from actual recording state](screenshots/native-live-panel-recording.png)
 ![Native panel rendered after actual file save](screenshots/native-live-panel-saved.png)
 
+## Video writer component — 2026-09-17
+
+- Added queue-confined H.264/MP4 plus stereo AAC writing. The screen adapter supplies BGRA frames and both tracks use one zero-based timeline; mixed48kHz Float32 PCM can be sent unchanged to this encoder and the separate M4A writer on the same serial queue. No pending sample arrays are retained. Invalid format/timing, missing tracks, encoder backpressure and write failures are explicit errors; a rejected sample still permits finalization of the valid prefix.
+- Three generated-fixture cases pass (two test functions): normal encoding; a rejected old video timestamp followed by a completely decoded valid prefix; and empty/missing-track/invalid-dimension lifecycle checks. A1.2s fixture contains30 picture frames starting at200ms, with the picture changing from red to blue and audio changing from silence to880Hz at700ms. All picture timestamps survive within1ms, decoded tone onset is within30ms of the known event, and MP4/M4A tone onsets match within one48kHz sample.
+- Initial assertions incorrectly counted the AVAssetReader-generated leading black gap buffer as an extra encoded picture. Inspection showed black at0, then all30 real frames at their original200ms-and-later timestamps. Tests now explicitly require the black leading gap, all30 picture timestamps and the700ms color transition; no timing tolerance was widened.
+- All30 component cases (19 test functions) pass, along with debug app build/signature and self-review. These are generated codec/timing fixtures, not actual screen-capture or2h synchronization evidence. The panel still explicitly disables recording video; actual capture integration follows separately.
+
 ## Remaining acceptance
 
 Screen selection/video outputs, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real 8-hour audio / 2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven mixed-audio quit are verified; sleep/lock handling and video shutdown still need dedicated checks.
