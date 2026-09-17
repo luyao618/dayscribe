@@ -67,6 +67,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var observedDevices: AudioDeviceSnapshot?
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
+    private var sessionLease: RecordingSessionLease?
     private let historyStore: RecordingHistoryStore?
     var sessionID: UUID? { sessionFiles?.id }
 
@@ -409,10 +410,12 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 throw AudioWriteError.encoding("没有可用的显示器。")
             }
             let desiredTitle = recordingTitle
-            let session = try await Task.detached {
-                try RecordingSessionFiles.create(directory: folder, title: desiredTitle, video: recordScreen)
+            let owned = try await Task.detached {
+                try RecordingSessionFiles.begin(directory: folder, title: desiredTitle, video: recordScreen)
             }.value
             guard generation == token, state == .authorizing else { return }
+            let session = owned.session
+            sessionLease = owned.lease
             sessionFiles = session
             if let historyStore {
                 try await historyStore.register(.init(session: session, title: desiredTitle))
@@ -574,6 +577,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             let saved = audioSaved ? "音频已保存，视频未完成。" : "视频已保存，音频未完成。"
             errorMessage = saved + (errorMessage ?? "")
         }
+        sessionLease?.release()
+        sessionLease = nil
         state = errorMessage == nil ? .completed : .failed
         updateRecentFiles()
         onUpdate?()
