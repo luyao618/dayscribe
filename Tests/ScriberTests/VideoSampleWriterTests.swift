@@ -44,7 +44,11 @@ struct VideoSampleWriterTests {
             #expect(abs(result.duration - 1.2) < 0.000001)
         }
         _ = try await audio.finish()
-        let asset = AVURLAsset(url: root.appendingPathComponent("video.mp4"))
+        let moved = RecordingFileSet(urls: [.audio: root.appendingPathComponent("audio.m4a"),
+                                            .video: root.appendingPathComponent("video.mp4")])
+            .relocate(to: root, title: "录屏 Café")
+        #expect(moved.succeeded)
+        let asset = AVURLAsset(url: try #require(moved.files.urls[.video]))
         let picture = try #require(try await asset.loadTracks(withMediaType: .video).first)
         let sound = try #require(try await asset.loadTracks(withMediaType: .audio).first)
         let videoFormat = try #require(try await picture.load(.formatDescriptions).first)
@@ -77,7 +81,7 @@ struct VideoSampleWriterTests {
         #expect(colors[1][2] > 200 && colors[1][0] < 10)
         #expect(abs(try #require(firstBlue) - 0.7) < 0.001)
         let mp4Tone = try await toneOnset(asset)
-        let m4aTone = try await toneOnset(AVURLAsset(url: root.appendingPathComponent("audio.m4a")))
+        let m4aTone = try await toneOnset(AVURLAsset(url: #require(moved.files.urls[.audio])))
         #expect(abs(mp4Tone - 0.7) < 0.03)
         #expect(abs(mp4Tone - m4aTone) < 1.0 / 48_000)
         #expect(abs(try #require(firstBlue) - mp4Tone) < 0.03)
