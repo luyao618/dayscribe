@@ -16,9 +16,10 @@ struct RecordingHistoryStoreTests {
         let saved = session.finalize(title: "已保存", closed: [.audio, .video], duration: 12.5, captureError: "采集提前结束")
         let indexData = try Data(contentsOf: fixture.index)
         let video = try #require(saved.files.urls[.video])
-        try FileManager.default.removeItem(at: video)
+        let away = fixture.root.appendingPathComponent("temporarily-away.mp4")
+        try RecordingFileSet.moveExclusively(video, away)
         #expect(session.renamePublished(saved.files, title: "失败的改名").errorMessage != nil)
-        try Data("mp4".utf8).write(to: video)
+        try RecordingFileSet.moveExclusively(away, video)
         let renamed = session.renamePublished(saved.files, title: "保存后改名")
         #expect(renamed.errorMessage == nil)
         try await store.register(.init(session: session, title: "再次发现时的新名称"))
@@ -160,7 +161,7 @@ struct RecordingHistoryStoreTests {
         try Data("audio".utf8).write(to: #require(session.files.urls[.audio]))
         let saved = session.finalize(title: "legacy", closed: [.audio])
         var json = try JSONSerialization.jsonObject(with: Data(contentsOf: session.manifestURL)) as! [String: Any]
-        for key in ["version", "duration", "captureError"] { json.removeValue(forKey: key) }
+        for key in ["version", "duration", "captureError", "fileIdentities"] { json.removeValue(forKey: key) }
         try JSONSerialization.data(withJSONObject: json).write(to: session.manifestURL)
         let store = RecordingHistoryStore(indexURL: fixture.index)
         try await store.register(.init(session: session, title: "one"))

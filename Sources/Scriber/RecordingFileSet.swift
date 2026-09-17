@@ -6,6 +6,22 @@ enum RecordingFileKind: String, CaseIterable, Codable, Sendable {
     case video = "mp4"
 }
 
+/// Survives a same-volume rename; birth time also guards ordinary inode reuse.
+struct RecordingFileIdentity: Codable, Equatable, Hashable, Sendable {
+    let device: Int64
+    let inode: UInt64
+    let birthSeconds: Int64
+    let birthNanoseconds: Int64
+
+    static func read(_ url: URL) -> Self? {
+        var info = stat()
+        guard url.isFileURL, url.withUnsafeFileSystemRepresentation({ lstat($0!, &info) }) == 0,
+              info.st_mode & S_IFMT == S_IFREG else { return nil }
+        return .init(device: Int64(info.st_dev), inode: info.st_ino,
+                     birthSeconds: Int64(info.st_birthtimespec.tv_sec), birthNanoseconds: Int64(info.st_birthtimespec.tv_nsec))
+    }
+}
+
 enum RecordingFilename {
     /// A basename, not a path. Leave room for a collision suffix and extension.
     static func validated(_ value: String) throws -> String {

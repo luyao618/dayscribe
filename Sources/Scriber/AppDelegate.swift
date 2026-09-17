@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var terminationDeferred = false
     private var directoryPicker: NSOpenPanel?
     private var isQuitting = false
+    private var historyRenameInProgress = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if writePermissionCheckIfRequested() { return }
@@ -43,7 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
                                    onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
                                    onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
-                                   onRevealHistory: { [weak self] id, kind in self?.revealHistory(id, kind: kind) }))
+                                   onRevealHistory: { [weak self] id, kind in self?.revealHistory(id, kind: kind) },
+                                   onRenameHistory: { [weak self] id, title in await self?.renameHistory(id, title: title) }))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
@@ -51,9 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self.lastHistoryState = self.recorder.state
                 if [.recording, .completed, .failed].contains(self.recorder.state) { self.refreshHistory() }
             }
-            guard self.systemCheck == nil, self.terminationDeferred, !self.recorder.state.active else { return }
-            self.terminationDeferred = false
-            DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
+            self.finishDeferredTermination()
         }
         recorder.$summary.combineLatest(recorder.$state)
             .sink { [weak self] summary, state in
@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "historyCount": history.entries.count,
             "historyLoading": history.isLoading,
             "historyError": history.errorMessage ?? history.discoveryMessage ?? "",
+            "historyRenaming": historyRenameInProgress,
             "playbackID": playback.entry?.id.uuidString ?? "",
             "playbackKind": playback.selectedKind?.rawValue ?? "",
             "playbackLoading": playback.isLoading,
@@ -186,6 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             Task { await recorder.stop(interrupted: true) }
             return .terminateLater
         }
+        if historyRenameInProgress { terminationDeferred = true; return .terminateLater }
         return .terminateNow
     }
 
@@ -314,6 +316,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             if !files.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(files) }
             self.writeUIReport()
         }
+    }
+
+    private func renameHistory(_ id: UUID, title: String) async -> String? {
+        guard !historyRenameInProgress, !isQuitting else { return "正在处理文件，请稍候。" }
+        guard !(recorder.sessionID == id && recorder.state.active) else { return "请先停止并保存当前录制。" }
+        historyRenameInProgress = true
+        let selectedKind = playback.selectedKind
+        defer { historyRenameInProgress = false; writeUIReport(); finishDeferredTermination() }
+        do {
+            _ = try RecordingFilename.validated(title)
+            playback.prepareForRename()
+            let message: String?
+            if recorder.sessionID == id {
+                let success = await recorder.renameSavedRecording(title)
+                message = success ? nil : recorder.controlMessage ?? "未能完成改名。"
+            } else {
+                message = try await RecordingHistoryStore.standard.rename(id, title: title).errorMessage
+            }
+            await history.refresh()
+            if !isQuitting { await playback.open(id, kind: selectedKind).value }
+            return message
+        } catch { return error.localizedDescription }
+    }
+
+    private func finishDeferredTermination() {
+        guard systemCheck == nil, terminationDeferred, !recorder.state.active, !historyRenameInProgress else { return }
+        terminationDeferred = false
+        DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
     }
 
     private func installPanel<Content: View>(_ content: Content) {

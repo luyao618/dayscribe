@@ -31,7 +31,15 @@ struct RecordingHistoryEntry: Identifiable, Sendable {
     let fileStates: [RecordingFileKind: FileState]
     let issue: String?
     var id: UUID { reference.id }
-    var title: String { manifest?.title ?? reference.initialTitle }
+    var title: String {
+        guard let manifest else { return reference.initialTitle }
+        let published = RecordingFileKind.allCases.filter { manifest.published.contains($0.rawValue) && fileStates[$0] == .available }
+        let names = Set(published.compactMap { urls[$0]?.deletingPathExtension().lastPathComponent })
+        if names.count == 1, published.contains(where: { urls[$0]?.path != manifest.paths[$0.rawValue] }) {
+            return names.first!
+        }
+        return manifest.title
+    }
     var duration: Double? { manifest?.duration }
 }
 
@@ -146,6 +154,19 @@ actor RecordingHistoryStore {
         return await Task.detached(priority: .utility) { Self.readEntry(reference) }.value
     }
 
+    func rename(_ id: UUID, title: String) async throws -> RecordingSessionFiles.Finalization {
+        guard let reference = try readIndex().recordings.first(where: { $0.id == id }) else { throw RecordingHistoryError.invalidManifest }
+        return try await Task.detached {
+            let entry = Self.readEntry(reference)
+            guard let manifest = entry.manifest else { throw RecordingHistoryError.invalidManifest }
+            let staging = reference.manifestURL.deletingLastPathComponent().standardizedFileURL
+            let session = RecordingSessionFiles(id: reference.id, startedAt: reference.startedAt,
+                directory: staging.deletingLastPathComponent(), stagingDirectory: staging, files: .init(urls: entry.urls))
+            let published = RecordingFileSet(urls: entry.urls.filter { manifest.published.contains($0.key.rawValue) })
+            return session.renamePublished(published, title: title)
+        }.value
+    }
+
     private func readIndex() throws -> Index {
         guard indexURL.isFileURL else { throw RecordingHistoryError.invalidIndex }
         let data: Data
@@ -173,7 +194,6 @@ actor RecordingHistoryStore {
         do {
             let manifest = try RecordingSessionFiles.Manifest.read(from: reference.manifestURL)
             let staging = reference.manifestURL.deletingLastPathComponent().standardizedFileURL
-            let destination = staging.deletingLastPathComponent()
             let kinds = Set(RecordingFileKind.allCases.map(\.rawValue))
             guard manifest.id == reference.id, manifest.startedAt == reference.startedAt,
                   manifest.version == nil || manifest.version == 1,
@@ -183,24 +203,28 @@ actor RecordingHistoryStore {
                   manifest.duration.map({ $0.isFinite && $0 >= 0 }) ?? true else { throw RecordingHistoryError.invalidManifest }
             var urls: [RecordingFileKind: URL] = [:]
             var states: [RecordingFileKind: RecordingHistoryEntry.FileState] = [:]
+            let resolved = try manifest.resolvedFiles(in: staging)
             for (extensionName, path) in manifest.paths {
                 guard path.hasPrefix("/"), !path.contains("\0"), let kind = RecordingFileKind(rawValue: extensionName) else {
                     throw RecordingHistoryError.invalidManifest
                 }
-                let url = URL(fileURLWithPath: path).standardizedFileURL
-                guard url.pathExtension == extensionName,
-                      [staging, destination].contains(url.deletingLastPathComponent()) else { throw RecordingHistoryError.invalidManifest }
+                guard let url = resolved.urls[kind] else { throw RecordingHistoryError.invalidManifest }
                 urls[kind] = url
                 var info = stat()
                 if url.withUnsafeFileSystemRepresentation({ lstat($0!, &info) }) != 0 {
                     states[kind] = errno == ENOENT ? .missing : .unavailable
                 } else if info.st_mode & S_IFMT != S_IFREG {
                     states[kind] = .unavailable
+                } else if let expected = manifest.fileIdentities?[extensionName], RecordingFileIdentity.read(url) != expected {
+                    states[kind] = .unavailable
                 } else {
                     states[kind] = manifest.closed.contains(extensionName) ? .available : .unfinished
                 }
             }
-            return .init(reference: reference, manifest: manifest, urls: urls, fileStates: states, issue: manifest.error)
+            let moved = urls.contains { kind, url in url.path != manifest.paths[kind.rawValue] }
+            let issues = [manifest.error, moved ? "文件位置已变化，已定位到实际文件，改名记录待同步。" : nil].compactMap { $0 }
+            return .init(reference: reference, manifest: manifest, urls: urls, fileStates: states,
+                         issue: issues.isEmpty ? nil : issues.joined(separator: "\n"))
         } catch {
             return .init(reference: reference, manifest: nil, urls: [:], fileStates: [:], issue: error.localizedDescription)
         }

@@ -15,6 +15,7 @@ struct RecordingSessionFiles: Sendable {
         var version: Int? = 1
         var duration: Double? = nil
         var captureError: String? = nil
+        var fileIdentities: [String: RecordingFileIdentity]? = nil
 
         static func read(from url: URL) throws -> Self {
             let handle = try FileHandle(forReadingFrom: url)
@@ -22,6 +23,34 @@ struct RecordingSessionFiles: Sendable {
             let data = try handle.read(upToCount: 64 * 1024 + 1) ?? Data()
             guard data.count <= 64 * 1024 else { throw CocoaError(.fileReadTooLarge) }
             return try JSONDecoder().decode(Self.self, from: data)
+        }
+
+        /// Resolve only recorded identities within this session's own directories.
+        /// Directory entries are stat'ed, never opened/imported as unrelated media.
+        func resolvedFiles(in staging: URL) throws -> RecordingFileSet {
+            let staging = staging.standardizedFileURL
+            let directory = staging.deletingLastPathComponent()
+            var candidates: [URL]?
+            var result: [RecordingFileKind: URL] = [:]
+            for (key, path) in paths {
+                guard let kind = RecordingFileKind(rawValue: key), path.hasPrefix("/"), !path.contains("\0") else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                let original = URL(fileURLWithPath: path).standardizedFileURL
+                guard original.pathExtension == key, [staging, directory].contains(original.deletingLastPathComponent()) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                result[kind] = original
+                guard let identity = fileIdentities?[key], RecordingFileIdentity.read(original) != identity else { continue }
+                if candidates == nil {
+                    candidates = try [directory, staging].flatMap {
+                        try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)
+                    }
+                }
+                let matches = candidates!.filter { $0.pathExtension == key && RecordingFileIdentity.read($0) == identity }
+                if matches.count == 1 { result[kind] = matches[0].standardizedFileURL }
+            }
+            return .init(urls: result)
         }
     }
 
@@ -94,49 +123,93 @@ struct RecordingSessionFiles: Sendable {
                      published: published, errorMessage: message)
     }
 
-    /// The caller supplies this session's current, closed published paths, since
-    /// previous renames may already have changed them from the staging paths.
-    func renamePublished(_ current: RecordingFileSet, title: String) -> Finalization {
+    /// Caller paths are a fallback only. Read authoritative paths while holding
+    /// the shared session lock, including an earlier rename's actual locations.
+    func renamePublished(_ current: RecordingFileSet, title: String,
+                         save: (Manifest, URL) throws -> Void = RecordingSessionFiles.writeManifest) -> Finalization {
         var locations = current
         var resolvedTitle = (current.urls[.video] ?? current.urls[.audio])?.deletingPathExtension().lastPathComponent ?? title
-        let kinds = Set(current.urls.keys)
+        var published = Set(current.urls.keys)
         var message: String?
         do {
             _ = try RecordingFilename.validated(title)
+            let lock = stagingDirectory.appendingPathComponent("rename.lock")
+                .withUnsafeFileSystemRepresentation { open($0!, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0o600) }
+            guard lock >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            defer { close(lock) }
+            guard flock(lock, LOCK_EX) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            defer { flock(lock, LOCK_UN) }
             let previous = try Manifest.read(from: manifestURL)
             guard previous.id == id, previous.startedAt == startedAt, previous.version == nil || previous.version == 1,
-                  Set(previous.paths.keys) == Set(current.urls.keys.map(\.rawValue)) else {
+                  Set(previous.closed).isSubset(of: Set(previous.paths.keys)),
+                  Set(previous.published).isSubset(of: Set(previous.closed)) else {
                 throw CocoaError(.fileReadCorruptFile)
             }
+            locations = try previous.resolvedFiles(in: stagingDirectory)
+            published = Set(previous.published.compactMap(RecordingFileKind.init(rawValue:)))
+            guard !published.isEmpty, Set(previous.published).isSubset(of: Set(previous.closed)),
+                  published.allSatisfy({ kind in
+                      guard let url = locations.urls[kind], let actual = RecordingFileIdentity.read(url) else { return false }
+                      return previous.fileIdentities?[kind.rawValue].map { $0 == actual } ?? true
+                  }) else { throw RecordingRenameError.unavailable }
             let captureError = previous.captureError ?? (previous.version == nil ? previous.error : nil)
-            try checkpoint(title: resolvedTitle, files: current, closed: kinds, published: kinds,
-                           error: captureError, duration: previous.duration, captureError: captureError)
-            let result = current.relocate(to: directory, title: title)
-            locations = result.files
-            resolvedTitle = result.title ?? (locations.urls[.video] ?? locations.urls[.audio])?.deletingPathExtension().lastPathComponent ?? resolvedTitle
+            let closed = Set(previous.closed.compactMap(RecordingFileKind.init(rawValue:)))
+            let primary: RecordingFileKind = published.contains(.video) ? .video : .audio
+            resolvedTitle = locations.urls[primary]?.deletingPathExtension().lastPathComponent ?? previous.title
+            // Persist identities BEFORE any move. A failed final metadata write
+            // remains resolvable without trusting a stale caller or filename.
+            var prepared = makeManifest(title: resolvedTitle, files: locations, closed: closed, published: published,
+                                        error: captureError, duration: previous.duration, captureError: captureError)
+            prepared.fileIdentities = (prepared.fileIdentities ?? [:]).merging(previous.fileIdentities ?? [:]) { _, recorded in recorded }
+            try save(prepared, manifestURL)
+            let result = RecordingFileSet(urls: locations.urls.filter { published.contains($0.key) })
+                .relocate(to: directory, title: title)
+            locations = .init(urls: locations.urls.merging(result.files.urls) { _, new in new })
+            resolvedTitle = result.title ?? locations.urls[primary]?.deletingPathExtension().lastPathComponent ?? resolvedTitle
             message = result.errorMessage
-            try checkpoint(title: resolvedTitle, files: locations, closed: kinds, published: kinds,
-                           error: Self.combined(captureError, message), duration: previous.duration, captureError: captureError)
+            var updated = makeManifest(title: resolvedTitle, files: locations, closed: closed, published: published,
+                                       error: Self.combined(captureError, message), duration: previous.duration,
+                                       captureError: captureError)
+            updated.fileIdentities = prepared.fileIdentities
+            try save(updated, manifestURL)
         } catch {
             message = [message, "改名记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
         }
-        return .init(files: locations, title: resolvedTitle, published: kinds, errorMessage: message)
+        return .init(files: locations, title: resolvedTitle, published: published, errorMessage: message)
     }
 
     private func checkpoint(title: String, files: RecordingFileSet, closed: Set<RecordingFileKind>,
                             published: Set<RecordingFileKind>, error: String?, duration: Double? = nil,
                             captureError: String? = nil) throws {
-        let manifest = Manifest(id: id, startedAt: startedAt, title: title,
+        try Self.writeManifest(makeManifest(title: title, files: files, closed: closed, published: published,
+                                           error: error, duration: duration, captureError: captureError), manifestURL)
+    }
+
+    private func makeManifest(title: String, files: RecordingFileSet, closed: Set<RecordingFileKind>,
+                              published: Set<RecordingFileKind>, error: String?, duration: Double?, captureError: String?) -> Manifest {
+        Manifest(id: id, startedAt: startedAt, title: title,
                                 paths: Dictionary(uniqueKeysWithValues: files.urls.map { ($0.key.rawValue, $0.value.path) }),
                                 closed: closed.map(\.rawValue).sorted(), published: published.map(\.rawValue).sorted(),
-                                error: error, duration: duration, captureError: captureError)
+                 error: error, duration: duration, captureError: captureError,
+                 fileIdentities: Dictionary(uniqueKeysWithValues: files.urls.compactMap { kind, url in
+                     guard closed.contains(kind), let identity = RecordingFileIdentity.read(url) else { return nil }
+                     return (kind.rawValue, identity)
+                 }))
+    }
+
+    static func writeManifest(_ manifest: Manifest, _ url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(manifest).write(to: manifestURL, options: .atomic)
+        try encoder.encode(manifest).write(to: url, options: .atomic)
     }
 
     private static func combined(_ first: String?, _ second: String?) -> String? {
         let messages = [first, second].compactMap { $0 }
         return messages.isEmpty ? nil : messages.joined(separator: "\n")
     }
+}
+
+private enum RecordingRenameError: LocalizedError {
+    case unavailable
+    var errorDescription: String? { "文件尚未保存完成或无法唯一定位，请刷新或恢复文件后重试。" }
 }

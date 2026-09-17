@@ -16,6 +16,7 @@ struct RecorderPanel: View {
     var onChooseDirectory: ((RecordingMode) async -> Void)? = nil
     var onRefreshHistory: (() -> Void)? = nil
     var onRevealHistory: ((UUID, RecordingFileKind?) -> Void)? = nil
+    var onRenameHistory: ((UUID, String) async -> String?)? = nil
     @State var captureKind = CaptureKind.region
     @State private var showsCaptureKinds = false
     @State private var isSelecting = false
@@ -33,7 +34,9 @@ struct RecorderPanel: View {
         VStack(spacing: 0) {
             if detailID != nil {
                 RecordingDetailPanel(playback: playback, onBack: { detailID = nil; showsHistory = true },
-                                     onReveal: { onRevealHistory?($0, $1) })
+                                     onReveal: { onRevealHistory?($0, $1) },
+                                     allowsRename: !(recorder.sessionID == detailID && recorder.state.active),
+                                     onRename: onRenameHistory)
             } else if showsHistory {
                 RecordingHistoryPanel(history: history, recorder: recorder, onBack: { showsHistory = false },
                                       onRefresh: { onRefreshHistory?() }, onOpen: openDetail,

@@ -5,6 +5,22 @@ struct RecordingDetailPanel: View {
     @ObservedObject var playback: RecordingPlaybackModel
     let onBack: () -> Void
     let onReveal: (UUID, RecordingFileKind) -> Void
+    var allowsRename = true
+    var onRename: ((UUID, String) async -> String?)? = nil
+    @State private var editingName = false
+    @State private var nameDraft = ""
+    @State private var nameError: String?
+    @State private var savingName = false
+    @FocusState private var nameFocused: Bool
+
+    private var canRename: Bool {
+        guard allowsRename, onRename != nil, !playback.isLoading, let entry = playback.entry,
+              let manifest = entry.manifest, !manifest.published.isEmpty else { return false }
+        return manifest.published.allSatisfy { key in
+            guard let kind = RecordingFileKind(rawValue: key) else { return false }
+            return entry.fileStates[kind] == .available
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -14,8 +30,41 @@ struct RecordingDetailPanel: View {
                 Text("录制详情").font(.system(size: 18, weight: .semibold))
                 Spacer()
             }
-            Text(playback.entry?.title ?? (playback.isLoading ? "正在读取录制…" : "录制不可用"))
-                .font(.system(size: 17, weight: .semibold)).lineLimit(2)
+            if editingName {
+                HStack(spacing: 8) {
+                    TextField("录制名称", text: $nameDraft).textFieldStyle(.plain).autocorrectionDisabled()
+                        .focused($nameFocused).accessibilityLabel("历史录制名称")
+                        .onSubmit { Task { await saveName() } }
+                        .onExitCommand { editingName = false; nameError = nil }
+                        .onAppear { DispatchQueue.main.async { nameFocused = true } }
+                    Button { Task { await saveName() } } label: { Image(systemName: "checkmark") }
+                        .buttonStyle(.plain).accessibilityLabel("确认历史名称")
+                }
+                .font(.system(size: 17, weight: .semibold)).padding(8)
+                .background(.white, in: RoundedRectangle(cornerRadius: 7))
+            } else {
+                Button {
+                    playback.pause()
+                    nameDraft = playback.entry?.title ?? ""
+                    nameError = nil
+                    nameFocused = false
+                    editingName = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(playback.entry?.title ?? (playback.isLoading ? "正在读取录制…" : "录制不可用"))
+                            .font(.system(size: 17, weight: .semibold)).lineLimit(2)
+                        Spacer(minLength: 0)
+                        Image(systemName: "pencil").font(.system(size: 12)).foregroundStyle(PanelPalette.slate)
+                    }
+                }
+                .buttonStyle(.plain).disabled(!canRename)
+                .accessibilityLabel("修改历史名称").accessibilityValue(playback.entry?.title ?? "")
+            }
+            if let nameError {
+                Text(nameError).font(.system(size: 11)).foregroundStyle(PanelPalette.record)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if savingName { Text("正在改名…").font(.system(size: 11)).foregroundStyle(PanelPalette.slate) }
             if let entry = playback.entry {
                 Text(RecordingHistoryModel.dateText(entry.reference.startedAt))
                     .font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
@@ -90,6 +139,21 @@ struct RecordingDetailPanel: View {
             }
         }
         .padding(20)
+        .disabled(savingName)
+        .onReceive(NotificationCenter.default.publisher(for: .scriberPanelClosing)) { _ in
+            editingName = false; nameError = nil; nameFocused = false
+        }
+    }
+
+    private func saveName() async {
+        guard !savingName, let id = playback.entry?.id, let onRename else { return }
+        do {
+            let title = try RecordingFilename.validated(nameDraft)
+            savingName = true
+            defer { savingName = false }
+            nameError = await onRename(id, title)
+            if nameError == nil { editingName = false }
+        } catch { nameError = error.localizedDescription }
     }
 
     private func fileStatus(_ state: RecordingHistoryEntry.FileState?) -> String {
