@@ -68,6 +68,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private let defaults: UserDefaults?
     private var sessionFiles: RecordingSessionFiles?
     private var sessionLease: RecordingSessionLease?
+    private var powerSession: RecordingPowerSession?
+    private var stopWaiters: [CheckedContinuation<Void, Never>] = []
+    var powerProtectionActive: Bool { powerSession?.systemAssertion != nil }
     private var storageMonitor: Task<Void, Never>?
     private let readStorage: @Sendable (URL) throws -> RecordingStorage
     private(set) var availableStorageBytes: UInt64?
@@ -440,6 +443,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 guard generation == token, state == .authorizing else { return }
             }
             recordingDirectory = session.directory
+            powerSession = try RecordingPowerSession(video: recordScreen) { [weak self] in
+                await self?.stopForSystemSleep()
+            }
             let url = session.files.urls[.audio]!
             let sink = try AudioSampleWriter(url: url)
             writer = sink
@@ -600,9 +606,24 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         }
         sessionLease?.release()
         sessionLease = nil
+        powerSession?.end()
+        powerSession = nil
         state = errorMessage == nil ? .completed : .failed
         updateRecentFiles()
         onUpdate?()
+        let waiters = stopWaiters
+        stopWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+    }
+
+    private func stopForSystemSleep() async {
+        if state == .finishing {
+            // A normal stop/quit may already be closing the encoders. Sleep must
+            // wait for that operation instead of accepting stop()'s early return.
+            await withCheckedContinuation { stopWaiters.append($0) }
+        } else {
+            await stop(interrupted: true, error: "系统即将睡眠，录制已中断。")
+        }
     }
 
     private func applyFileFinalization(_ result: RecordingSessionFiles.Finalization) {

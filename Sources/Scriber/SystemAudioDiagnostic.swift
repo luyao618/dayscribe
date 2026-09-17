@@ -174,6 +174,7 @@ final class SystemAudioDiagnostic {
             "renameEvent": renameEvent,
             "audioSaved": recorder.audioSaved,
             "availableStorageBytes": recorder.availableStorageBytes ?? 0,
+            "powerProtectionActive": recorder.powerProtectionActive,
             "videoSaved": recorder.videoSaved,
             "videoPath": recorder.videoURL?.path ?? "",
             "videoFrames": recorder.videoSummary?.videoFrames ?? 0,
