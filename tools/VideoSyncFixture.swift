@@ -10,21 +10,50 @@ final class SyncView: NSView {
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
         let now = CMClockGetTime(CMClockGetHostTimeClock()).seconds
-        let elapsed = max(0, now - epoch)
+        let elapsed = epoch == 0 ? 0 : max(0, now - epoch)
         NSColor(srgbRed: 0.08, green: 0.12, blue: 0.15, alpha: 1).setFill()
         bounds.fill()
         let pulse = cues.contains { now >= $0 && now < $0 + 0.25 }
         (pulse ? NSColor.white : NSColor.black).setFill()
         NSRect(x: 24, y: 24, width: 128, height: 128).fill()
-        let label = epoch == 0 ? "Scriber · preparing capture" : String(format: "Scriber · %02d:%02d:%02d", Int(elapsed)/3600, Int(elapsed)/60%60, Int(elapsed)%60)
-        (label as NSString).draw(at: NSPoint(x: 185, y: 55), withAttributes: [
-            .font: NSFont.monospacedSystemFont(ofSize: 30, weight: .medium), .foregroundColor: NSColor.white])
-        ("Real window capture · flash + 880 Hz cue" as NSString).draw(at: NSPoint(x: 24, y: 205),
-            withAttributes: [.font: NSFont.systemFont(ofSize: 24), .foregroundColor: NSColor.white])
+        // The long fixture hit a CoreText exception in repeated NSString font
+        // drawing. Use geometric digits: this render loop never creates text,
+        // attributed-string dictionaries or fonts.
+        drawClock(Int(elapsed), at: CGPoint(x: 185, y: 55))
+        NSColor.white.withAlphaComponent(0.55).setStroke()
+        let wave = NSBezierPath()
+        for index in 0...160 {
+            let point = CGPoint(x: 24 + Double(index) * 3, y: 220 + 18 * sin(Double(index) * .pi / 20))
+            if index == 0 { wave.move(to: point) } else { wave.line(to: point) }
+        }
+        wave.lineWidth = 2
+        wave.stroke()
         // Keep real picture changes throughout the run, not just at its ends.
         NSColor.systemMint.setFill()
         NSRect(x: 24 + (elapsed.truncatingRemainder(dividingBy: 4) / 4) * (bounds.width - 96),
                y: bounds.height - 72, width: 48, height: 32).fill()
+    }
+
+    private func drawClock(_ seconds: Int, at origin: CGPoint) {
+        let digits = [seconds / 36_000 % 10, seconds / 3_600 % 10,
+                      seconds / 600 % 6, seconds / 60 % 10, seconds / 10 % 6, seconds % 10]
+        let masks = [0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f]
+        let segments = [CGRect(x: 4, y: 0, width: 20, height: 4), CGRect(x: 24, y: 4, width: 4, height: 19),
+                        CGRect(x: 24, y: 27, width: 4, height: 19), CGRect(x: 4, y: 46, width: 20, height: 4),
+                        CGRect(x: 0, y: 27, width: 4, height: 19), CGRect(x: 0, y: 4, width: 4, height: 19),
+                        CGRect(x: 4, y: 23, width: 20, height: 4)]
+        NSColor.white.setFill()
+        for (index, digit) in digits.enumerated() {
+            let x = origin.x + CGFloat(index * 42 + index / 2 * 14)
+            for (bit, rect) in segments.enumerated() where masks[digit] & (1 << bit) != 0 {
+                rect.offsetBy(dx: x, dy: origin.y).fill()
+            }
+            if index == 1 || index == 3 {
+                for y in [14.0, 34.0] {
+                    NSBezierPath(ovalIn: CGRect(x: x + 36, y: origin.y + y, width: 4, height: 4)).fill()
+                }
+            }
+        }
     }
 }
 

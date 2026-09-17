@@ -462,6 +462,15 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 - A separate real256KiB process file-size limit still fails the video encoder and publishes only usable audio: **2.376458333 s /114070 frames**. This confirms the change does not call an encoding failure saved. Evidence: `video-write-failure.log`, `video-write-failure-ht_slwcu/verified.json`.
 - Production session recovery published the first trial's retained video while reusing its saved M4A. Both fully decode with identical paired PCM; all original media hashes are unchanged (`video-endurance-yrejmrnt/recovery-verified.json`, `original-media-hashes.json`). The recovered91m file is retained as failure/recovery evidence. Recovery RSS was observed at about2.6GiB in one sample; attribution remains to be investigated separately. The fixture rendering fix and a new complete two-hour run are next.
 
+## Endurance fixture rendering repair — 2026-09-18
+
+- The first long trial's concrete crash stack was in repeated CoreText/NSString rendering inside VideoSyncFixture.draw. The fixture now draws its clock as geometric segments and its reference pattern as paths, with no font or attributed-string construction in that loop. It still displays a real moving window and emits real native audio cues; recorder samples still come from ScreenCaptureKit.
+- Runner failures now record fixture and recorder exit codes separately and distinguish unexpected process exit from a deadline. An intentionally terminated owned fixture was correctly recorded as -SIGTERM, the trial failed instead of passing, and the corrected recorder retained both closed files with a capture warning (`artifacts/fixture-exit-check-9ego5bs9/verified.json`).
+- Full30-second calibration passed **30.3008125 s /1454439 audio frames /870 video frames**,1920×1080, native/full FFmpeg decode, identical paired PCM and beginning/end sync. Maximum absolute cue offset16.667ms, median start/end change -13.333ms; finalization0.09560175s and peak recorder RSS95088KiB. The captured frame below was visually inspected. Evidence: `artifacts/vector-fixture-calibration.log`, `video-endurance-sekse8j3/verified.json`.
+- Swift helper build, Python compilation and self-review passed. This removes the observed fixture failure path; a new complete two-hour run is still required and is not inferred from calibration. The original eight-hour audio run is untouched.
+
+![Actual captured geometric synchronization fixture](screenshots/native-vector-sync-calibration.png)
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.
