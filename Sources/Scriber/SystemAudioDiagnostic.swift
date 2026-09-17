@@ -15,6 +15,9 @@ final class SystemAudioDiagnostic {
     private let recordScreen: Bool
     private let captureRequest: CaptureRequest?
     private let renameCheck: Bool
+    private let interruptSource: AudioSource?
+    private let reportSourceFailure: Bool
+    private var interrupting: Task<Void, Never>?
     private var renaming: Task<Void, Never>?
     private var renameEvent: [String: Any] = [:]
     private var switching: Task<Void, Never>?
@@ -31,6 +34,8 @@ final class SystemAudioDiagnostic {
     init(directory: URL, seconds: Double, sources: Set<AudioSource> = [.system],
          microphoneDeviceID: String? = nil, switchSources: Bool = false, panelSnapshots: Bool = false,
          recordScreen: Bool = false, captureRequest: CaptureRequest? = nil, renameCheck: Bool = false,
+         interruptSource: AudioSource? = nil,
+         reportSourceFailure: Bool = true,
          onStatus: @escaping (String) -> Void,
          onFinished: @escaping () -> Void) {
         self.directory = directory
@@ -42,6 +47,8 @@ final class SystemAudioDiagnostic {
         self.recordScreen = recordScreen
         self.captureRequest = captureRequest
         self.renameCheck = renameCheck
+        self.interruptSource = interruptSource
+        self.reportSourceFailure = reportSourceFailure
         self.onStatus = onStatus
         self.onFinished = onFinished
     }
@@ -53,6 +60,13 @@ final class SystemAudioDiagnostic {
             await recorder.start(directory: directory, sources: sources, microphoneDeviceID: microphoneDeviceID,
                                  recordScreen: recordScreen, captureRequest: captureRequest, title: renameCheck ? "改名前" : nil)
             guard recorder.state == .recording, !Task.isCancelled else { return }
+            if let interruptSource {
+                interrupting = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                    guard let self else { return }
+                    await self.recorder.interruptSourceForDiagnostic(interruptSource, reportFailure: self.reportSourceFailure)
+                }
+            }
             if renameCheck {
                 renaming = Task { [weak self] in
                     do { try await Task.sleep(for: .seconds(1)) } catch { return }
@@ -92,6 +106,7 @@ final class SystemAudioDiagnostic {
         timer?.cancel()
         switching?.cancel()
         renaming?.cancel()
+        interrupting?.cancel()
         await recorder.stop(interrupted: true)
     }
 
@@ -108,7 +123,7 @@ final class SystemAudioDiagnostic {
         } ?? 0
         let finished = recorder.state == .completed || recorder.state == .failed
         let status = recorder.state == .completed && recorder.interrupted ? "interrupted" : recorder.state.rawValue
-        if switchSources, trace.count < 512 {
+        if switchSources || interruptSource != nil, trace.count < 512 {
             trace.append(["hostTime": CMClockGetTime(CMClockGetHostTimeClock()).seconds,
                           "sources": recorder.sources.map { $0.rawValue }.sorted(),
                           "receivedFrames": keyed(recorder.captureMetrics.receivedFrames),
@@ -157,6 +172,7 @@ final class SystemAudioDiagnostic {
             "sources": recorder.sources.map { $0.rawValue }.sorted(),
             "sourceEvents": sourceEvents,
             "sourceTrace": trace,
+            "sourceFailures": keyed(recorder.sourceFailures),
             "microphoneName": recorder.microphoneName
         ]
         do {
@@ -173,6 +189,7 @@ final class SystemAudioDiagnostic {
             timer?.cancel()
             switching?.cancel()
             renaming?.cancel()
+            interrupting?.cancel()
             timer = nil
             onFinished()
         }

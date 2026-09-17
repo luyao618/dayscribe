@@ -57,7 +57,7 @@ struct RecorderPanel: View {
                     if mode == .video { captureTarget }
                     sources
                     destination
-                    if let error = recorder.controlMessage ?? recorder.errorMessage ?? shortcut.errorMessage {
+                    if let error = recorder.controlMessage ?? recorder.errorMessage ?? recorder.sourceFailureMessage ?? shortcut.errorMessage {
                         Text(error)
                             .font(.system(size: 11))
                             .foregroundStyle(PanelPalette.record)

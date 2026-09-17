@@ -250,6 +250,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 panelSnapshots: arguments.contains("--panel-snapshots"),
                 recordScreen: arguments.contains("--display-video-check"), captureRequest: captureRequest,
                 renameCheck: arguments.contains("--rename-check"),
+                interruptSource: arguments.contains("--interrupt-system-source") || arguments.contains("--stall-system-source") ? .system
+                    : (arguments.contains("--interrupt-microphone-source") || arguments.contains("--stall-microphone-source") ? .microphone : nil),
+                reportSourceFailure: !arguments.contains("--stall-system-source") && !arguments.contains("--stall-microphone-source"),
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {
