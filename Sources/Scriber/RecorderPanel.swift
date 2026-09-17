@@ -290,8 +290,7 @@ struct RecorderPanel: View {
             .padding(.bottom, 9)
             if let url = recorder.lastSavedURL {
                 Button {
-                    let files = url.pathExtension == "mp4" ? [url, url.deletingPathExtension().appendingPathExtension("m4a")] : [url]
-                    NSWorkspace.shared.activateFileViewerSelecting(files)
+                    NSWorkspace.shared.activateFileViewerSelecting(recorder.lastSavedFiles)
                 } label: {
                     HStack(spacing: 10) {
                         recordingIcon
@@ -299,7 +298,8 @@ struct RecorderPanel: View {
                             Text(url.deletingPathExtension().lastPathComponent)
                                 .font(.system(size: 12, weight: .medium))
                                 .lineLimit(1).truncationMode(.middle)
-                            Text(url.pathExtension == "mp4" ? "MP4 + M4A · 在 Finder 中显示" : "M4A 音频 · 在 Finder 中显示")
+                            Text(recorder.lastSavedFiles.count == 2 ? "MP4 + M4A · 在 Finder 中显示" :
+                                    (url.pathExtension == "mp4" ? "MP4 视频 · 在 Finder 中显示" : "M4A 音频 · 在 Finder 中显示"))
                                 .font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
                         }
                         Spacer(minLength: 2)
@@ -338,11 +338,11 @@ struct RecorderPanel: View {
     private var matchesRecordingMode: Bool { (mode == .video) == (recorder.videoURL != nil) }
     private var clockText: String { matchesRecordingMode ? recorder.elapsedText : "00:00:00" }
     private var filename: String {
-        if matchesRecordingMode, let url = recorder.videoURL ?? recorder.outputURL { return url.deletingPathExtension().lastPathComponent }
+        if matchesRecordingMode, !recorder.recordingTitle.isEmpty { return recorder.recordingTitle }
         return "开始录制后自动命名"
     }
     private var destinationURL: URL {
-        if matchesRecordingMode, let url = recorder.videoURL ?? recorder.outputURL { return url.deletingLastPathComponent() }
+        if matchesRecordingMode, let url = recorder.recordingDirectory { return url }
         return FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Movies/Scriber/\(mode == .audio ? "录音" : "录屏")", directoryHint: .isDirectory)
     }

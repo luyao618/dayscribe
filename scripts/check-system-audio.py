@@ -12,6 +12,7 @@ import tempfile
 import time
 import wave
 import os
+import unicodedata
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--video", action="store_true", help="Record the main display to MP4 plus the same standalone M4A")
@@ -26,6 +27,7 @@ parser.add_argument("--playback-device", help="Route the fixture to this device 
 parser.add_argument("--stimulus-amplitude", type=int, default=1000, help="Test PCM peak, 1–4096 out of 32767")
 parser.add_argument("--expected-microphone-rate", type=int)
 parser.add_argument("--panel", action="store_true", help="Exercise the normal recorder panel with real capture")
+parser.add_argument("--rename-check", action="store_true", help="Change the desired title during real recording and verify stable writer paths")
 parser.add_argument("--quit-via-appkit", action="store_true", help="Use NSApplication termination on the interruption signal")
 args = parser.parse_args()
 if not 1 <= args.stimulus_amplitude <= 4096:
@@ -62,6 +64,8 @@ command = ["open", str(project / "build/Scriber.app"), "--args", "--show-panel",
            "--display-video-check" if args.video else ("--panel-audio-check" if args.panel else "--mixed-audio-check"), str(root), str(args.seconds), "--audio-sources", args.sources]
 if args.panel:
     command += ["--panel-snapshots"]
+if args.rename_check:
+    command += ["--rename-check"]
 if args.quit_via_appkit:
     command += ["--quit-via-appkit"]
 if args.microphone_device:
@@ -119,6 +123,18 @@ while subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode =
 assert subprocess.run(["kill", "-0", str(pid)], capture_output=True).returncode != 0, "Capture process did not exit"
 recording = Path(result["path"])
 assert recording.parent == root and recording.suffix == ".m4a"
+if args.rename_check:
+    event = result["renameEvent"]
+    assert event["applied"] and not event["invalidAccepted"] and event["frames"] > 0, event
+    assert event["previousTitle"] == "改名前" and event["title"] == "录制中改名 Café", event
+    assert event["previousPath"] == event["pathAfterRename"] != str(recording), event
+    # Foundation/macOS file paths may use decomposed Unicode for the same name.
+    assert unicodedata.normalize("NFC", recording.stem) == result["recordingTitle"] == event["title"], result
+    assert not Path(event["previousPath"]).exists(), "Closed media was not moved from staging"
+    manifest = json.loads((Path(event["previousPath"]).parent / "session.json").read_text())
+    assert manifest["paths"]["m4a"] == str(recording) and "m4a" in manifest["published"], manifest
+    if args.video:
+        assert manifest["paths"]["mp4"] == result["videoPath"] and "mp4" in manifest["published"], manifest
 probe = json.loads(subprocess.check_output([
     "ffprobe", "-v", "error", "-show_entries",
     "format=duration,size:stream=codec_name,sample_rate,channels", "-of", "json", str(recording)
