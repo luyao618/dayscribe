@@ -84,7 +84,7 @@ struct RecordingHistoryRow: View {
         }
         if entry.manifest?.published.count != entry.manifest?.paths.count { return "未完整保存" }
         if entry.fileStates.values.contains(.missing) || entry.fileStates.values.contains(.unavailable) { return "文件缺失或无法访问" }
-        if entry.issue != nil { return "保存时出现问题" }
+        if entry.issue != nil { return "已保存 · 请查看提示" }
         return video ? "MP4 + M4A" : "M4A 音频"
     }
 
