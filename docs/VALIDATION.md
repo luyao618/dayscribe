@@ -479,6 +479,15 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 - Reproduce memory measurement on an inactive owned file with `xcrun swiftc -O -swift-version 6 -parse-as-library Sources/Scriber/MovieFilePrefix.swift tools/InspectPrefixCopyMemory.swift -o artifacts/InspectPrefixCopyMemory`, then pass absolute source and new destination paths. The tool reports actual process peak RSS and copied bytes; it does not certify media decoding.
 - The second complete two-hour recording is running with the repaired geometric fixture and interrupted-video publication fix. Original eight-hour audio continues independently. Neither ongoing test is marked passed by these memory checks.
 
+## Restored mode and range-type preferences — 2026-09-18
+
+- SPEC's remembered-choice default now includes recording mode and range TYPE, which previously reset with SwiftUI state at app restart. First use remains audio/region; the normal panel initializes from the restored values. Only enum preferences are stored: a concrete window, display or rectangle is never restored as a capture target, and no recording starts automatically.
+- User actions persist each preference independently through the recorder's supplied defaults store; active recording/preparation/finalization refuses mode/range changes. Nil-default diagnostic models stay isolated. Unrecognized stored values fall back for display without deleting the original preference.
+- All **116 component cases (102 functions)**, Release build and self-review passed (`artifacts/recording-options-tests.log`, `recording-options-build.log`). A new case covers restoration, independent changes, invalid values, nil-store isolation and absence of an active target after restoration.
+- Two separate native helper processes wrote and reread a private defaults domain: video/window restored with idle state and no target. The helper explicitly flushed its own domain because it has no AppKit termination cycle; it did not modify personal preferences. Evidence: `artifacts/recording-options-712h1lm7/verified.json`. The restored native view below was rendered offscreen and inspected. **Actual button/restart interaction remains pending unlock**, alongside the earlier saved-interruption UI follow-up.
+
+![Offscreen native restored mode and range type](screenshots/rendered-restored-recording-options.png)
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.

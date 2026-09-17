@@ -66,6 +66,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private var followsDefaultMicrophone = true
     private var observedDevices: AudioDeviceSnapshot?
     private let defaults: UserDefaults?
+    private(set) var preferredMode = RecordingMode.audio
+    private(set) var preferredCaptureKind = CaptureKind.region
     private var sessionFiles: RecordingSessionFiles?
     private var sessionLease: RecordingSessionLease?
     private var powerSession: RecordingPowerSession?
@@ -89,6 +91,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         })
         let mask = (defaults?.object(forKey: "recordingSources") as? Int ?? 3) & 3
         sources = Set(AudioSource.allCases.filter { (mask == 0 ? 3 : mask) & (1 << $0.rawValue) != 0 })
+        preferredMode = defaults?.string(forKey: "recordingMode").flatMap(RecordingMode.init(rawValue:)) ?? .audio
+        preferredCaptureKind = defaults?.string(forKey: "recordingCaptureKind").flatMap(CaptureKind.init(rawValue:)) ?? .region
         deviceMonitor = AudioDeviceMonitor { [weak self] reading in
             self?.updateAudioDevices(reading)
         }
@@ -163,6 +167,24 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func reportControlMessage(_ message: String?) { controlMessage = message }
+
+    @discardableResult
+    func setPreferredMode(_ mode: RecordingMode) -> Bool {
+        guard !state.active else { return false }
+        preferredMode = mode
+        defaults?.set(mode.rawValue, forKey: "recordingMode")
+        onUpdate?()
+        return true
+    }
+
+    @discardableResult
+    func setPreferredCaptureKind(_ kind: CaptureKind) -> Bool {
+        guard !state.active else { return false }
+        preferredCaptureKind = kind
+        defaults?.set(kind.rawValue, forKey: "recordingCaptureKind")
+        onUpdate?()
+        return true
+    }
 
     func destination(for mode: RecordingMode) -> URL {
         destinationDirectories[mode] ?? RecordingDestination.defaultURL(for: mode)

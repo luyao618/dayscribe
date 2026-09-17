@@ -76,13 +76,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             if !self.recovery.isRunning { self.refreshHistory() }
             self.finishDeferredTermination()
         }
-        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, shortcut: shortcut, recovery: recovery, onQuit: { [weak self] in self?.requestQuit() },
+        installPanel(RecorderPanel(recorder: recorder, history: history, playback: playback, shortcut: shortcut, recovery: recovery,
+                                   mode: recorder.preferredMode, onQuit: { [weak self] in self?.requestQuit() },
                                    onStartVideo: { [weak self] kind, title in await self?.startVideo(kind, title: title) },
                                    onChooseDirectory: { [weak self] mode in await self?.chooseDirectory(for: mode) },
                                    onRefreshHistory: { [weak self] in self?.refreshHistory(discover: true) },
                                    onRevealHistory: { [weak self] id, kind in self?.revealHistory(id, kind: kind) },
                                    onRenameHistory: { [weak self] id, title in await self?.renameHistory(id, title: title) },
-                                   onRetryRecovery: { [weak self] in self?.beginRecovery() }))
+                                   onRetryRecovery: { [weak self] in self?.beginRecovery() }, captureKind: recorder.preferredCaptureKind))
         recorder.onUpdate = { [weak self] in
             guard let self else { return }
             self.writeUIReport()
@@ -233,6 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "audioSaved": recorder.audioSaved, "videoSaved": recorder.videoSaved,
             "availableStorageBytes": recorder.availableStorageBytes ?? 0,
             "powerProtectionActive": recorder.powerProtectionActive,
+            "preferredMode": recorder.preferredMode.rawValue,
+            "preferredCaptureKind": recorder.preferredCaptureKind.rawValue,
             "frames": recorder.summary?.frames ?? 0,
             "duration": recorder.summary?.duration ?? 0,
             "sources": recorder.sources.map { $0.rawValue }.sorted(),
