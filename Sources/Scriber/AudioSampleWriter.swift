@@ -52,7 +52,10 @@ final class AudioSampleWriter: @unchecked Sendable {
         self.url = url
         self.sampleRate = sampleRate
         self.channels = channels
-        writer = try AVAssetWriter(outputURL: url, fileType: .m4a)
+        // M4A is audio-only MPEG-4. Use the same container path as the video
+        // writer so AAC priming edits are present in interrupted fragments too.
+        writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        RecordingFragments.configure(writer)
         input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: sampleRate,

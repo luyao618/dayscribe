@@ -51,6 +51,7 @@ final class VideoSampleWriter: @unchecked Sendable {
         self.queue = queue ?? DispatchQueue(label: "scriber.video-writer", qos: .userInitiated,
                                             autoreleaseFrequency: .workItem)
         writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        RecordingFragments.configure(writer)
         video = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width, AVVideoHeightKey: height,
@@ -63,6 +64,7 @@ final class VideoSampleWriter: @unchecked Sendable {
                 AVVideoAverageBitRateKey: max(1_000_000, min(80_000_000, width * height * 6)),
                 AVVideoExpectedSourceFrameRateKey: 30,
                 AVVideoMaxKeyFrameIntervalKey: 60,
+                AVVideoMaxKeyFrameIntervalDurationKey: 1,
                 AVVideoAllowFrameReorderingKey: false
             ]
         ])
