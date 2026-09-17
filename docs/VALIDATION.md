@@ -164,6 +164,18 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Actual independent-window recording of the test fixture](screenshots/captured-window-fixture.png)
 
+## Native range selector and video panel — pending manual GUI acceptance
+
+- The normal approved panel now starts video recording through its range choice. Single window/display use SCContentSharingPicker; region mode opens a transparent overlay on each display, supports drag-to-select, shows backing-pixel dimensions, confirms with Return/keypad Enter or the start button, and cancels with Escape. Overlay windows use local screen origins, acquire keyboard focus and are explicitly closed/released when selection finishes. Mode and range are locked while choosing or recording. Source toggles remain usable during recording and are disabled while choosing/preparing.
+- The panel shows the real video's elapsed time, filename, target, source meters and save state. Recent video recording points to the MP4 and reveals both paired files in Finder. The approved 390pt layout and palette are retained; filename/destination/history editing remain separate pending increments.
+- All 36 component cases (24 functions) pass. New tests deliver synthetic events directly to our own unattached RegionOverlayView and verify drag clipping, start-button enablement, Return confirmation, too-small selection refusal and Escape handling. These do not test physical desktop input, window focus routing or the OS picker UI. The native app build/signature and diff self-review pass.
+- A real video diagnostic using the normal panel passed (artifacts/system-audio-check-dxxln4o4):8.388208333s shared timeline,402634 identical decoded audio samples in the two outputs, complete picture/audio decode and normal process exit. The screenshots below render our actual native panel from idle or real recording/saved state. The audio idle render remains byte-identical to the earlier approved native panel.
+- Actual menu-bar clicks, range popover behavior, OS window/display chooser, region overlay focus/cancellation and nested settings remain **pending**. CUA timed out and is now absent from the callable tool inventory; no cua-driver or peekaboo is installed. A manual three-mode check was requested. The built app is left open, with optional local `--ui-validation-report` evidence at artifacts/ui-selector-check-l8padam0/state.json. This flag writes only a bounded current-state report; normal launches do not write it. No successful manual selection had been observed when this entry was written.
+
+![Ready native video panel, offscreen render](screenshots/native-video-ready.png)
+![Native panel during actual video capture, offscreen render](screenshots/native-video-recording.png)
+![Native panel after actual paired file save, offscreen render](screenshots/native-video-saved.png)
+
 ## Remaining acceptance
 
-Native window/display chooser, region-drag UI and normal video action, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+Actual native chooser/region/panel interaction acceptance, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.

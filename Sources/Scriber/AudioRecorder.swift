@@ -84,6 +84,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         return power > -65 ? "已检测到声音" : "等待声音"
     }
 
+    func reportControlMessage(_ message: String?) { controlMessage = message }
+
     @discardableResult
     func setSources(_ selected: Set<AudioSource>) async -> Bool {
         controlMessage = nil
@@ -353,7 +355,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             errorMessage = saved + (errorMessage ?? "")
         }
         state = errorMessage == nil ? .completed : .failed
-        if state == .completed { lastSavedURL = outputURL; lastSavedDuration = elapsedText }
+        if state == .completed { lastSavedURL = videoURL ?? outputURL; lastSavedDuration = elapsedText }
         onUpdate?()
     }
 

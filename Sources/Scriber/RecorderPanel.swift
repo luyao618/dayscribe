@@ -6,6 +6,10 @@ struct RecorderPanel: View {
     @State var mode = RecordingMode.audio
     @State private var showsSettings = false
     let onQuit: () -> Void
+    var onStartVideo: ((CaptureKind) async -> Void)? = nil
+    @State var captureKind = CaptureKind.region
+    @State private var showsCaptureKinds = false
+    @State private var isSelecting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +20,7 @@ struct RecorderPanel: View {
                 if mode == .video { captureTarget }
                 sources
                 destination
-                if let error = recorder.errorMessage ?? recorder.controlMessage {
+                if let error = recorder.controlMessage ?? recorder.errorMessage {
                     Text(error)
                         .font(.system(size: 11))
                         .foregroundStyle(PanelPalette.record)
@@ -55,7 +59,7 @@ struct RecorderPanel: View {
                 Button {} label: { Image(systemName: "clock.arrow.circlepath") }
                     .buttonStyle(PanelIconButtonStyle())
                     .disabled(true)
-                    .help("历史列表暂不可用；下方可查看最近一次录音")
+                    .help("历史列表暂不可用；下方可查看最近一次录制")
                     .accessibilityLabel("历史列表，暂不可用")
                 Button { showsSettings.toggle() } label: { Image(systemName: "gearshape") }
                     .buttonStyle(PanelIconButtonStyle())
@@ -92,7 +96,7 @@ struct RecorderPanel: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(mode == choice ? .isSelected : [])
-                .disabled(recorder.isRecording || recorder.isBusy)
+                .disabled(recorder.state.active || isSelecting)
             }
         }
         .padding(3)
@@ -139,17 +143,43 @@ struct RecorderPanel: View {
     }
 
     private var captureTarget: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "viewfinder").foregroundStyle(PanelPalette.iris)
-            Text("自选区域")
-            Spacer()
-            Text("范围选择暂不可用").font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
+        Button { showsCaptureKinds.toggle() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: captureKind.symbol).foregroundStyle(PanelPalette.iris)
+                Text(recorder.isRecording ? recorder.captureTargetTitle : captureKind.title)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer()
+                Text(recorder.isRecording ? "录制中" : "开始前选择")
+                    .font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
+                Image(systemName: "chevron.down").font(.system(size: 8))
+            }
+            .font(.system(size: 11))
+            .padding(.horizontal, 11)
+            .frame(height: 34)
+            .background(PanelPalette.iris.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(PanelPalette.iris.opacity(0.09)))
         }
-        .font(.system(size: 11))
-        .padding(.horizontal, 11)
-        .frame(height: 34)
-        .background(PanelPalette.iris.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(PanelPalette.iris.opacity(0.09)))
+        .buttonStyle(.plain)
+        .disabled(recorder.state.active || isSelecting)
+        .accessibilityLabel("录屏范围：\(captureKind.title)")
+        .popover(isPresented: $showsCaptureKinds) {
+            VStack(spacing: 2) {
+                ForEach(CaptureKind.allCases, id: \.self) { kind in
+                    Button { captureKind = kind; showsCaptureKinds = false } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: kind.symbol).frame(width: 18)
+                            Text(kind.title)
+                            Spacer()
+                            if captureKind == kind { Image(systemName: "checkmark").foregroundStyle(PanelPalette.iris) }
+                        }
+                        .font(.system(size: 12)).padding(10).frame(width: 170)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(6)
+        }
         .padding(.top, -4)
         .padding(.bottom, 17)
     }
@@ -206,13 +236,20 @@ struct RecorderPanel: View {
     private var primaryAction: some View {
         Button {
             if recorder.isRecording { Task { await recorder.stop() } }
-            else { Task { await recorder.start() } }
+            else {
+                Task {
+                    if mode == .video {
+                        isSelecting = true
+                        defer { isSelecting = false }
+                        await onStartVideo?(captureKind)
+                    } else { await recorder.start() }
+                }
+            }
         } label: {
             HStack(spacing: 9) {
                 RoundedRectangle(cornerRadius: recorder.isRecording ? 2 : 5)
                     .frame(width: 10, height: 10)
-                Text(recorder.state == .finishing ? "正在保存…" : (recorder.state == .authorizing ? "正在准备…"
-                     : (recorder.isRecording ? "停止并保存" : (mode == .audio ? "开始录音" : "选择范围并录屏"))))
+                Text(actionTitle)
             }
             .font(.system(size: 13, weight: .semibold))
             .frame(maxWidth: .infinity)
@@ -223,8 +260,18 @@ struct RecorderPanel: View {
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
-        .disabled(mode == .video || recorder.isBusy)
-        .help(mode == .video ? "录屏暂不可用" : "录制已开启的声音来源")
+        .disabled(recorder.isBusy || isSelecting || (mode == .video && onStartVideo == nil && !recorder.isRecording))
+        .help(mode == .video ? "选择录制范围，保存视频和独立音频" : "录制已开启的声音来源")
+    }
+
+    private var actionTitle: String {
+        if isSelecting { return "正在选择范围…" }
+        return switch recorder.state {
+        case .authorizing: "正在准备…"
+        case .finishing: "正在保存…"
+        case .recording: "停止并保存"
+        default: mode == .audio ? "开始录音" : "选择范围并录屏"
+        }
     }
 
     private var recentRecording: some View {
@@ -242,14 +289,17 @@ struct RecorderPanel: View {
             .foregroundStyle(PanelPalette.slate)
             .padding(.bottom, 9)
             if let url = recorder.lastSavedURL {
-                Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: {
+                Button {
+                    let files = url.pathExtension == "mp4" ? [url, url.deletingPathExtension().appendingPathExtension("m4a")] : [url]
+                    NSWorkspace.shared.activateFileViewerSelecting(files)
+                } label: {
                     HStack(spacing: 10) {
                         recordingIcon
                         VStack(alignment: .leading, spacing: 2) {
                             Text(url.deletingPathExtension().lastPathComponent)
                                 .font(.system(size: 12, weight: .medium))
                                 .lineLimit(1).truncationMode(.middle)
-                            Text("M4A 音频 · 在 Finder 中显示")
+                            Text(url.pathExtension == "mp4" ? "MP4 + M4A · 在 Finder 中显示" : "M4A 音频 · 在 Finder 中显示")
                                 .font(.system(size: 10)).foregroundStyle(PanelPalette.slate)
                         }
                         Spacer(minLength: 2)
@@ -262,7 +312,7 @@ struct RecorderPanel: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("在 Finder 中显示已保存的录音")
+                .help("在 Finder 中显示已保存的文件")
             } else {
                 HStack(spacing: 10) {
                     recordingIcon
@@ -277,19 +327,22 @@ struct RecorderPanel: View {
     }
 
     private var recordingIcon: some View {
-        Image(systemName: "waveform")
-            .font(.system(size: 16)).foregroundStyle(PanelPalette.jade.opacity(0.8))
+        let video = recorder.lastSavedURL?.pathExtension == "mp4"
+        let tint = video ? PanelPalette.iris : PanelPalette.jade
+        return Image(systemName: video ? "video" : "waveform")
+            .font(.system(size: 16)).foregroundStyle(tint.opacity(0.8))
             .frame(width: 31, height: 31)
-            .background(PanelPalette.jade.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var clockText: String { mode == .audio ? recorder.elapsedText : "00:00:00" }
+    private var matchesRecordingMode: Bool { (mode == .video) == (recorder.videoURL != nil) }
+    private var clockText: String { matchesRecordingMode ? recorder.elapsedText : "00:00:00" }
     private var filename: String {
-        if mode == .audio, let url = recorder.outputURL { return url.deletingPathExtension().lastPathComponent }
+        if matchesRecordingMode, let url = recorder.videoURL ?? recorder.outputURL { return url.deletingPathExtension().lastPathComponent }
         return "开始录制后自动命名"
     }
     private var destinationURL: URL {
-        if mode == .audio, let url = recorder.outputURL { return url.deletingLastPathComponent() }
+        if matchesRecordingMode, let url = recorder.videoURL ?? recorder.outputURL { return url.deletingLastPathComponent() }
         return FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Movies/Scriber/\(mode == .audio ? "录音" : "录屏")", directoryHint: .isDirectory)
     }
@@ -307,20 +360,21 @@ struct RecorderPanel: View {
                               }), status: recorder.sourceStatus(source),
                               powerDB: recorder.sourcePower(source),
                               toggleHelp: source == .microphone ? "切换麦克风 · \(recorder.microphoneName)" : "切换电脑声音",
-                              canToggle: recorder.canChangeSources)
+                              canToggle: recorder.canChangeSources && !isSelecting)
     }
     private var statusColor: Color {
         if recorder.state == .failed { return PanelPalette.record }
         if recorder.isRecording { return PanelPalette.record }
-        if mode == .audio, recorder.state == .completed { return PanelPalette.jade }
+        if matchesRecordingMode, recorder.state == .completed { return PanelPalette.jade }
         return PanelPalette.slate
     }
     private var statusText: String {
-        if mode == .video { return "录屏暂不可用" }
+        if isSelecting { return "选择录屏范围" }
+        if !matchesRecordingMode { return mode == .video ? "准备录屏" : "准备录音" }
         return switch recorder.state {
-        case .idle: "准备录音"
+        case .idle: mode == .video ? "准备录屏" : "准备录音"
         case .authorizing: "等待录制权限"
-        case .recording: "正在录音"
+        case .recording: mode == .video ? "正在录屏" : "正在录音"
         case .finishing: "正在保存"
         case .completed: "已保存"
         case .failed: "录制未完成"

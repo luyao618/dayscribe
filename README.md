@@ -17,15 +17,17 @@
 
 每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；主面板已接入双路音频引擎。运行中独立声音启停已通过内置与 USB 设备实测，全屏录制已通过测试入口实测，范围选择与正式入口仍在实现中。
+> 2026-09-16 重新确定方向。Scriber 为候选名称；主面板已接入双路音频引擎。运行中独立声音启停已通过内置与 USB 设备实测，全屏录制已通过测试入口实测，范围选择与正式入口已接入，实际点击验收待完成。
 
 ## 原生应用开发
 
-当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏 MP4+M4A 已在测试入口打通；录屏范围选择、正式入口、改名、目录设置和完整历史尚未接入。
+当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏／窗口／区域 MP4+M4A 已有真实采集验证，正式录屏入口和原生选择器已接入，实际点击流程仍待验收；改名、目录设置和完整历史尚未接入。
 
 需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
 
 脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
+
+录屏操作：在面板切到「录屏」，通过范围行选择「自选区域／单个窗口／整块屏幕」，再点「选择范围并录屏」。区域模式拖动框选后按回车或「开始录屏」，Esc 取消；窗口／屏幕模式使用 macOS 选择界面。停止后生成同名 MP4 和 M4A，最近录制可在 Finder 中同时定位两份文件。此流程的原生实际点击验收仍待完成。
 
 短时真实麦克风检查：先退出普通 Scriber，再运行 `open build/Scriber.app --args --show-panel --microphone-check /absolute/output/directory 5`。该入口现在使用同一双路引擎的麦克风模式，需要麦克风及屏幕与系统音频录制权限，保存 M4A 和 result.json 并退出。中途退出会标记为 interrupted，不算完成请求的时长。测试音频请保留在本地，不提交进仓库。
 
@@ -39,7 +41,7 @@
 
 全屏录制检查：`scripts/check-system-audio.py --video --sources both --seconds 8`，或直接 `open build/Scriber.app --args --display-video-check /absolute/output/directory 8 --audio-sources both`。会真实录下主显示器，输出同名 MP4（有声音）和 M4A；支持 `--quit-via-appkit --seconds 30 --interrupt-after 5` 验证退出保存，`scripts/check-source-switching.py --video` 验证录屏中切换声音。视频测试时长包含采集流准备前确定的公共起点，可能比指定等待时间稍长。独立音频与 MP4 解码后的声音样本对应；AAC 容器显示时长可能仍有几十毫秒编码填充。原始媒体仅保存在本地 artifacts/，不提交。
 
-窗口／区域采集检查：`scripts/check-capture-targets.py` 会临时显示一个四色测试窗口，通过真实窗口录制和区域裁剪验证输出尺寸、位置、颜色及双文件；完成后关闭测试窗口。`--display-id <ID>` 可验证外接屏。单次测试可给 `check-system-audio.py --video` 追加 `--capture-window <window ID>`，或 `--capture-display <display ID> --capture-region x,y,width,height`；区域使用该显示器左上角为原点的逻辑点。正式范围选择 UI 仍待接入。
+窗口／区域采集检查：`scripts/check-capture-targets.py` 会临时显示一个四色测试窗口，通过真实窗口录制和区域裁剪验证输出尺寸、位置、颜色及双文件；完成后关闭测试窗口。`--display-id <ID>` 可验证外接屏。单次测试可给 `check-system-audio.py --video` 追加 `--capture-window <window ID>`，或 `--capture-display <display ID> --capture-region x,y,width,height`；区域使用该显示器左上角为原点的逻辑点。正式范围选择 UI 已接入，实际点击流程仍待验收。
 
 只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
 

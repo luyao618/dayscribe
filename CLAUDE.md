@@ -32,7 +32,7 @@ Scriber 是用户提出的候选名称，目前用作工作名。
 
 ## 当前阶段
 
-主面板使用 AudioRecorder，真实双路选择、电平、最近文件和异步退出已通过内置/USB实测。每个声音源独立 SCStream，避免 captureMicrophone=false 后仍采集麦克风。全屏录制已在 --display-video-check 测试入口打通：ScreenVideoOutput + VideoSampleWriter 生成有声音的 MP4，同一混音 PCM 写入独立 M4A，使用公共 host-clock 起点和48k终点；Retina尺寸取 SCK contentRect×pointPixelScale。声音切换、双路/单路/USB录屏及 AppKit 退出通过。35 个组件用例及原生构建通过。CaptureTarget 已支持屏幕、独立窗口和区域几何；主屏、左侧外接屏、竖屏上的真实窗口/区域四色测试通过。采集规范为 sRGB，编码显式标记颜色，避免显示器色彩空间导致偏色。原生桌面点击验收仍待完成，正式录屏入口在范围选择实现后接入。design/ 是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
+主面板使用 AudioRecorder，真实双路选择、电平、最近文件和异步退出已通过内置/USB实测。每个声音源独立 SCStream，避免 captureMicrophone=false 后仍采集麦克风。全屏录制已在 --display-video-check 测试入口打通：ScreenVideoOutput + VideoSampleWriter 生成有声音的 MP4，同一混音 PCM 写入独立 M4A，使用公共 host-clock 起点和48k终点；Retina尺寸取 SCK contentRect×pointPixelScale。声音切换、双路/单路/USB录屏及 AppKit 退出通过。36 个组件用例及原生构建通过。CaptureTarget 已支持屏幕、独立窗口和区域几何；主屏、左侧外接屏、竖屏上的真实窗口/区域四色测试通过。采集规范为 sRGB，编码显式标记颜色，避免显示器色彩空间导致偏色。正式录屏入口和 NativeCapturePicker / RegionOverlayView 已接入，原生桌面点击验收仍待完成。当前应用可带 --ui-validation-report 写入手工验收的本地状态，不应把合成视图事件或离屏截图当作实际点击验证。design/ 是已确认的视觉基线。完整证据与剩余项见 docs/VALIDATION.md。
 
 ## 约定
 

@@ -17,7 +17,7 @@ enum RenderPanel {
             panel = AnyView(SystemAudioCheckPanel(recorder: AudioRecorder(), onStop: {}))
         } else {
             panel = AnyView(RecorderPanel(recorder: AudioRecorder(),
-                                         mode: CommandLine.arguments.last == "video" ? .video : .audio, onQuit: {}))
+                                         mode: CommandLine.arguments.last == "video" ? .video : .audio, onQuit: {}, onStartVideo: { _ in }))
         }
         let content = panel
             .background(Color(nsColor: .windowBackgroundColor))
