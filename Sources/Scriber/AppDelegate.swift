@@ -9,7 +9,7 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private let recorder = AudioRecorder(defaults: .standard)
+    private let recorder = AudioRecorder(defaults: .standard, historyStore: .standard)
     private let capturePicker = NativeCapturePicker()
     private var subscriptions = Set<AnyCancellable>()
     private var terminationSignal: DispatchSourceSignal?
@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             "audioPath": recorder.outputURL?.path ?? "",
             "videoPath": recorder.videoURL?.path ?? "",
             "recordingTitle": recorder.recordingTitle,
+            "sessionID": recorder.sessionID?.uuidString ?? "",
             "recordingDirectory": recorder.recordingDirectory?.path ?? "",
             "audioDirectory": recorder.destination(for: .audio).path,
             "videoDirectory": recorder.destination(for: .video).path,
