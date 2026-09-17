@@ -253,7 +253,8 @@ struct RecorderPanel: View {
                     .frame(width: 260, height: 27)
                 }
                 .buttonStyle(.plain)
-                .disabled(recorder.isBusy || isSelecting || (matchesRecordingMode && recorder.state == .failed))
+                .disabled(recorder.isBusy || isSelecting ||
+                          (matchesRecordingMode && recorder.state == .failed && !hasSavedFiles))
                 .help("修改文件名，回车确认，Esc 取消；重名会自动编号")
                 .accessibilityLabel("修改文件名")
                 .accessibilityValue(filename)
@@ -403,7 +404,8 @@ struct RecorderPanel: View {
             let title = try RecordingFilename.validated(nameDraft)
             if matchesRecordingMode && recorder.isRecording {
                 guard recorder.setRecordingTitle(title) else { return false }
-            } else if matchesRecordingMode && recorder.state == .completed {
+            } else if matchesRecordingMode &&
+                        (recorder.state == .completed || (recorder.state == .failed && hasSavedFiles)) {
                 guard await recorder.renameSavedRecording(title) else {
                     nameError = recorder.controlMessage
                     return false
@@ -499,6 +501,7 @@ struct RecorderPanel: View {
     }
 
     private var matchesRecordingMode: Bool { (mode == .video) == (recorder.videoURL != nil) }
+    private var hasSavedFiles: Bool { recorder.audioSaved || recorder.videoSaved }
     private var clockText: String { matchesRecordingMode ? recorder.elapsedText : "00:00:00" }
     private var filename: String {
         if matchesRecordingMode, !recorder.recordingTitle.isEmpty { return recorder.recordingTitle }
@@ -550,7 +553,12 @@ struct RecorderPanel: View {
         case .recording: mode == .video ? "正在录屏" : "正在录音"
         case .finishing: "正在保存"
         case .completed: "已保存"
-        case .failed: "录制未完成"
+        case .failed:
+            if recorder.audioSaved && (recorder.videoURL == nil || recorder.videoSaved) {
+                "已保存 · 请查看提示"
+            } else if hasSavedFiles {
+                "部分文件已保存"
+            } else { "录制未完成" }
         }
     }
 }

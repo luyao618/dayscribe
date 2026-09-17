@@ -155,7 +155,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         if recoveringSources.contains(source) { return "正在重连" }
         if sourceFailures[source] != nil { return "采集中断" }
         if isChangingSources && recoveringSources.isEmpty { return "正在切换" }
-        if state == .failed { return "录音异常" }
+        if state == .failed { return "已停止" }
         if isBusy { return state == .authorizing ? "等待授权" : "正在保存" }
         guard isRecording else { return "未录制" }
         guard let power = sourcePower(source) else { return "等待声音数据" }

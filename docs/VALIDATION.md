@@ -442,6 +442,17 @@ All three tested screens exposed 2× backing scale. The six captures passed; the
 
 ![Actual decoded synchronization fixture](screenshots/native-video-sync-calibration.png)
 
+## Saved recordings with interruption warnings — 2026-09-18
+
+- The main panel now distinguishes fully published files with warnings (「已保存 · 请查看提示」), partially published files and recordings with no saved output. Published output from a failed capture can use the existing filename editor and saved-file rename transaction. History no longer calls every fully published warning a save failure. A stopped source without a source-specific failure is labeled「已停止」instead of attributing disk/video failures to audio capture.
+- All111 Release component cases (99 functions), Release app build, signed isolated native validation harness and diff self-review passed (`artifacts/saved-interruption-tests.log`, `saved-interruption-build.log`). Three actual capture cases passed: repeated real source interruption with audio saved (2.252541667s), interruption with both video/audio saved (2.941375s), and a real128KiB process file-size limit causing video failure while audio finalized (1.626041667s).
+- Each case renamed its published files through AudioRecorder, preserved exact media hashes and warning/session metadata, retained a single history entry, and fully decoded every saved output with FFmpeg. Evidence: `artifacts/saved-interruption-real.log`, `saved-interruption-ehtaexao/{audio,video,partial}/verified.json`. The local harness directly invokes capture/rename APIs; it does not simulate physical disconnects or prove clicking the filename control.
+- Fresh preflight found the desktop locked while AX/screen/HID permissions remained granted. Native views from these real capture states were rendered offscreen and inspected below; **these are not desktop screenshots or GUI-click evidence**. Native edit/confirm/history follow-up remains pending unlock. Both ongoing long tests and their app binaries were preserved.
+
+![Offscreen native view of saved audio with a warning](screenshots/rendered-saved-interruption-audio.png)
+
+![Offscreen native view of partially saved recording](screenshots/rendered-saved-interruption-partial.png)
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, real8-hour audio /2-hour video tests and the final delivery audit remain outstanding. Recovery and native controls have short-case evidence; these results do not substitute for long-duration acceptance.
