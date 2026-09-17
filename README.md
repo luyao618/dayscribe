@@ -39,6 +39,8 @@
 
 全屏录制检查：`scripts/check-system-audio.py --video --sources both --seconds 8`，或直接 `open build/Scriber.app --args --display-video-check /absolute/output/directory 8 --audio-sources both`。会真实录下主显示器，输出同名 MP4（有声音）和 M4A；支持 `--quit-via-appkit --seconds 30 --interrupt-after 5` 验证退出保存，`scripts/check-source-switching.py --video` 验证录屏中切换声音。视频测试时长包含采集流准备前确定的公共起点，可能比指定等待时间稍长。独立音频与 MP4 解码后的声音样本对应；AAC 容器显示时长可能仍有几十毫秒编码填充。原始媒体仅保存在本地 artifacts/，不提交。
 
+窗口／区域采集检查：`scripts/check-capture-targets.py` 会临时显示一个四色测试窗口，通过真实窗口录制和区域裁剪验证输出尺寸、位置、颜色及双文件；完成后关闭测试窗口。`--display-id <ID>` 可验证外接屏。单次测试可给 `check-system-audio.py --video` 追加 `--capture-window <window ID>`，或 `--capture-display <display ID> --capture-region x,y,width,height`；区域使用该显示器左上角为原点的逻辑点。正式范围选择 UI 仍待接入。
+
 只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
 
 [实现说明与验收标准](SPEC.md) 已就绪，包含平台默认值、长时录制目标、设备变化处理及建议 Goal 文本。

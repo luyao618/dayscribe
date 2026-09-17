@@ -33,6 +33,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private(set) var videoURL: URL?
     private(set) var videoSummary: VideoWriteSummary?
     private(set) var videoEpochHostTime: Double?
+    private(set) var captureTargetTitle = ""
     private(set) var videoMetrics = ScreenVideoMetrics()
     private(set) var audioSaved = false
     private(set) var videoSaved = false
@@ -170,7 +171,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func start(directory: URL? = nil, sources selection: Set<AudioSource>? = nil, microphoneDeviceID: String? = nil,
-               recordScreen: Bool = false) async {
+               recordScreen recordVideo: Bool = false, captureRequest: CaptureRequest? = nil) async {
+        let recordScreen = recordVideo || captureRequest != nil
         guard !state.active else { return }
         let sources = selection ?? self.sources
         let token = UUID()
@@ -187,6 +189,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         videoURL = nil
         videoSummary = nil
         videoEpochHostTime = nil
+        captureTargetTitle = ""
         videoMetrics = ScreenVideoMetrics()
         audioSaved = false
         videoSaved = false
@@ -230,15 +233,9 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             if recordScreen {
                 let videoURL = url.deletingPathExtension().appendingPathExtension("mp4")
                 self.videoURL = videoURL
-                let configuration = SCStreamConfiguration()
-                // Use backing pixels, not scaled desktop points (the built-in display
-                // currently exposes an odd 1117-point height). H.264 needs even dimensions.
-                configuration.width = Int(ceil(filter.contentRect.width * Double(filter.pointPixelScale) / 2)) * 2
-                configuration.height = Int(ceil(filter.contentRect.height * Double(filter.pointPixelScale) / 2)) * 2
-                configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-                configuration.pixelFormat = kCVPixelFormatType_32BGRA
-                configuration.queueDepth = 3
-                configuration.showsCursor = true
+                let target = try CaptureTarget.resolve(captureRequest ?? .display(display.displayID), content: content)
+                captureTargetTitle = target.title
+                let configuration = try target.configuration()
                 let encoder = try VideoSampleWriter(url: videoURL, width: configuration.width,
                                                      height: configuration.height, queue: sink.queue)
                 let captureEpoch = CMClockGetTime(CMClockGetHostTimeClock())
@@ -246,7 +243,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 let screenOutput = ScreenVideoOutput(writer: encoder, epoch: captureEpoch)
                 screen = screenOutput
                 videoOutput = screenOutput
-                let capture = SCStream(filter: filter, configuration: configuration, delegate: self)
+                let capture = SCStream(filter: target.filter, configuration: configuration, delegate: self)
                 videoStream = capture
                 try capture.addStreamOutput(screenOutput, type: .screen, sampleHandlerQueue: sink.queue)
                 try await capture.startCapture()

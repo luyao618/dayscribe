@@ -143,6 +143,27 @@ AAC container durations currently exceed the submitted PCM timelines by about 44
 - Pure-audio regression also passed on the final build (artifacts/system-audio-check-0tgl6_5_):8.171688s submitted PCM, both identifiable tones, complete decode and process exit. All32 component cases (20 functions), app build/signature, script syntax and self-review passed. Added checks cover explicit common epoch/leading silence/final silence, audio sample mirroring, exact audio presentation duration and playable video prefix after an invalid endpoint.
 - Full-screen recording is available through `--display-video-check` / `scripts/check-system-audio.py --video`; the normal approved panel still disables video until its range selector is implemented. These short tests do not establish content-level long-duration A/V sync, window/region selection, desktop GUI interactions, device transitions or the required2h recording.
 
+## Window/region target resolution — 2026-09-17
+
+- Added explicit display, window and display-local region targets. A window limits only the picture; system sound remains global. Region geometry clips a drag to its starting screen, converts AppKit bottom-left global points to top-left local points, and derives even backing-pixel dimensions. Missing targets and invalid geometry are rejected instead of falling back to another screen. Native picker filters can use the same resolver when the UI is connected.
+- Three new component cases cover offset/negative display coordinates, clipping, Retina and fractional dimensions, nonfinite/empty/off-display geometry, and strict diagnostic argument parsing. All 35 component cases (23 functions), native build/signature, script syntax and self-review pass.
+- Actual target tests display a separate app-owned four-color window and record it **through ScreenCaptureKit**, first as an independent window and then as a rectangle on its display. No fixture pixels are passed to the encoder. Each test verifies the MP4/M4A pair, exact 960×600 output, all four quadrant locations and decoded primary colors. The helper checks its real window frame against the requested location and closes after testing.
+
+| Display used for the fixture | Target-check evidence | Window capture | Region capture |
+|---|---|---|---|
+| Main display 1 | artifacts/target-check-wptt8l7i | system-audio-check-eyu70gh6 | system-audio-check-wn75movr |
+| External display 2, left of main | artifacts/target-check-phzk0_nx | system-audio-check-o60r1qqo | system-audio-check-m23c_eve |
+| Portrait display 3, vertical offset | artifacts/target-check-knomwyvs | system-audio-check-t_60uyl8 | system-audio-check-ys0xlsv7 |
+
+All three tested screens exposed 2× backing scale. The six captures passed; the extracted fixture-window frame below was also visually inspected. Ordinary desktop recordings remain local; this image contains only our test fixture.
+
+- The first window-color trial (target-check-kcrww8t_ / system-audio-check-w320whgw) failed: SCK used the display profile and the encoded video had no color tags, turning pure sRGB green into roughly RGB(127,255,82). Explicit sRGB capture and sRGB-transfer/BT.709-primary/matrix output corrected the colors to near pure primaries. Original color thresholds were retained; packet color tags are now checked too.
+- The first external-region trial (target-check-h8ywcpin) failed because the **fixture helper** passed a global origin to NSWindow's screen-relative initializer, doubling the screen offset. A geometry probe confirmed requested x−1540 versus actual x−3140. The helper now uses a local origin and reports/asserts its actual global frame. Production region geometry did not need changing; the corrected external and portrait checks passed.
+- A nonexistent window ID (artifacts/target-invalid-5pc_yv9n) reported an unavailable-target error, zero screen/audio frames, no successful media and process exit. It did not record the main display as a fallback.
+- Reproduce with `scripts/check-capture-targets.py` or `--display-id <connected display ID>`. The approved panel still awaits its native range chooser; these tests verify target resolution and actual recorded bounds, not GUI selection clicks.
+
+![Actual independent-window recording of the test fixture](screenshots/captured-window-fixture.png)
+
 ## Remaining acceptance
 
-Window/region/display selection and normal video UI, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.
+Native window/display chooser, region-drag UI and normal video action, editable filenames, destinations/history, global shortcut, Bluetooth, device changes, recovery, real8-hour audio /2-hour video tests, and final native GUI validation remain outstanding. Explicit stop and AppKit-driven audio/video quit are verified; sleep/lock behavior still requires dedicated checks.

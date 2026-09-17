@@ -115,12 +115,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let sources = sourceModes[mode] else { NSApp.terminate(nil); return }
             let deviceIndex = arguments.firstIndex(of: "--microphone-device")
             let device = deviceIndex.flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+            let captureRequest: CaptureRequest?
+            do { captureRequest = try CaptureRequest.diagnostic(arguments: arguments) }
+            catch { NSLog("Invalid capture target: %@", error.localizedDescription); NSApp.terminate(nil); return }
             let check = SystemAudioDiagnostic(
                 directory: URL(fileURLWithPath: arguments[index + 1], isDirectory: true),
                 seconds: seconds, sources: sources, microphoneDeviceID: device,
                 switchSources: arguments.contains("--switch-sources"),
                 panelSnapshots: arguments.contains("--panel-snapshots"),
-                recordScreen: arguments.contains("--display-video-check"),
+                recordScreen: arguments.contains("--display-video-check"), captureRequest: captureRequest,
                 onStatus: { [weak self] title in self?.statusItem?.button?.title = title },
                 onFinished: { [weak self] in
                     if self?.terminationDeferred == true {
