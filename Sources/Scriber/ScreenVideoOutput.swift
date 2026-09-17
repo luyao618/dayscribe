@@ -124,9 +124,9 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                 } catch { self.metrics.error = error.localizedDescription; continuation.resume() }
             }
         }
-        // Always close the encoder even if ScreenCaptureKit reported an error.
-        let summary = try await writer.finish(at: end)
-        if let error = await snapshot().error { throw VideoWriteError.encoding(error) }
-        return summary
+        // A capture interruption is retained in metrics, independently of
+        // whether the encoder closed a usable file. Only encoding/finalization
+        // failures prevent publication of that file.
+        return try await writer.finish(at: end)
     }
 }

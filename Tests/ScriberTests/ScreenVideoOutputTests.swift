@@ -73,6 +73,40 @@ struct ScreenVideoOutputTests {
         await #expect(throws: (any Error).self) { try await output.finish(at: CMTime(value: 3, timescale: 1)) }
     }
 
+    @Test(arguments: [SCFrameStatus.blank, .suspended, .stopped])
+    func captureInterruptionKeepsClosedVideoUsableAndRetainsWarning(status: SCFrameStatus) async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try VideoSampleWriter(url: url, width: 64, height: 48)
+        let output = ScreenVideoOutput(writer: writer, epoch: .zero)
+        let picture = try sample(red: true, time: .zero, status: .complete)
+        let interruption = try sample(red: false, time: CMTime(value: 1, timescale: 60), status: status)
+        let sound = try MixedAudioOutput.sample(stereo: Array(repeating: 0.01, count: 3200), at: 0)
+        try writer.queue.sync {
+            output.append(picture)
+            try writer.appendAudio(sound)
+            output.append(interruption)
+        }
+        let result = try await output.finish(at: CMTime(value: 1600, timescale: 48_000))
+        let metrics = await output.snapshot()
+        #expect(result.videoFrames == 1 && result.audioFrames == 1600)
+        #expect(metrics.error != nil && metrics.repeatedFrames == 0)
+        let asset = AVURLAsset(url: url)
+        for type in [AVMediaType.audio, .video] {
+            let track = try #require(try await asset.loadTracks(withMediaType: type).first)
+            let reader = try AVAssetReader(asset: asset)
+            let settings: [String: Any] = type == .video
+                ? [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+                : [AVFormatIDKey: kAudioFormatLinearPCM]
+            let decoded = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+            reader.add(decoded)
+            #expect(reader.startReading())
+            var frames = 0
+            while let sample = decoded.copyNextSampleBuffer() { frames += sample.numSamples }
+            #expect(reader.status == .completed && frames == (type == .video ? 1 : 1600))
+        }
+    }
+
     private func sample(red: Bool, time: CMTime, status: SCFrameStatus) throws -> CMSampleBuffer {
         var buffer: CVPixelBuffer?
         #expect(CVPixelBufferCreate(kCFAllocatorDefault, 64, 48, kCVPixelFormatType_32BGRA,

@@ -588,6 +588,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 if errorMessage == nil { errorMessage = error.localizedDescription }
             }
             videoMetrics = await videoOutput.snapshot()
+            if errorMessage == nil { errorMessage = videoMetrics.error }
         }
         videoOutput = nil
         if let sessionFiles {
