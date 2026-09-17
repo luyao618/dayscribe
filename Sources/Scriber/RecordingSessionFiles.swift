@@ -68,9 +68,31 @@ struct RecordingSessionFiles: Sendable {
     let files: RecordingFileSet
     var manifestURL: URL { stagingDirectory.appendingPathComponent("session.json") }
 
+    struct Owned: Sendable {
+        let session: RecordingSessionFiles
+        let lease: RecordingSessionLease
+    }
+
+    /// Capture owns the directory before any discoverable manifest is published.
+    /// The caller must retain the lease through encoder closure and finalization.
+    static func begin(directory: URL, title: String, video: Bool) throws -> Owned {
+        let title = try RecordingFilename.validated(title)
+        let session = try workspace(directory: directory, video: video)
+        let lease = try RecordingSessionLease.acquire(in: session.stagingDirectory)
+        try session.checkpoint(title: title, files: session.files, closed: [], published: [], error: nil)
+        return Owned(session: session, lease: lease)
+    }
+
     /// Run filesystem work away from the main actor and the media writer queue.
+    /// For file-only preparation; live capture must use begin to retain ownership.
     static func create(directory: URL, title: String, video: Bool) throws -> Self {
         let title = try RecordingFilename.validated(title)
+        let session = try workspace(directory: directory, video: video)
+        try session.checkpoint(title: title, files: session.files, closed: [], published: [], error: nil)
+        return session
+    }
+
+    private static func workspace(directory: URL, video: Bool) throws -> Self {
         guard directory.isFileURL else { throw CocoaError(.fileWriteUnsupportedScheme) }
         let directory = URL(fileURLWithPath: directory.path, isDirectory: true).standardizedFileURL
         let id = UUID()
@@ -85,7 +107,6 @@ struct RecordingSessionFiles: Sendable {
                            files: .init(urls: Dictionary(uniqueKeysWithValues: kinds.map {
                                ($0, staging.appendingPathComponent("capture").appendingPathExtension($0.rawValue))
                            })))
-        try session.checkpoint(title: title, files: session.files, closed: [], published: [], error: nil)
         return session
     }
 

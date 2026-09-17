@@ -263,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     if self?.terminationDeferred == true {
                         self?.terminationDeferred = false
                         DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
-                    } else {
+                    } else if !arguments.contains("--keep-check-open") {
                         DispatchQueue.main.async { NSApp.terminate(nil) }
                     }
                 })
