@@ -1,0 +1,65 @@
+{
+  "applicationSource": "2a86beb94fff756650252cb645f169495f06d47d",
+  "applicationBinarySHA256": "240e6ac6cc2026eaf4d5d2932151aab257767575725c749c3540f2e00f79991a",
+  "capturedOn": "2026-09-18",
+  "content": "Owned demo canvas and isolated Scriber history; audio removed from UI clips. No actual meeting content.",
+  "assets": [
+    {
+      "file": "audio-ready.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "6589ab032bb42526cc8540671bc865c4e56c9a71e07375647b5c8e49b7b0bd11"
+    },
+    {
+      "file": "audio-recording.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "e90d325bf863c48d3f8f65703ef8d64f7525ef4e827f7788e00e8bafac4001e8"
+    },
+    {
+      "file": "range-options.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "af421c57baadaa35c1cfbd44fd652f22b2e4b50c63d31b1454c4aac52f8ec43c"
+    },
+    {
+      "file": "destinations.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "cf735dfb00caa7d4a762e6da51849c4e0a87bbb58cfd466750947f95121a85e7"
+    },
+    {
+      "file": "history.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "8a27b968acfde6214cf0edcfee076ee95adb270feca4ba81bab0db8fed3b7489"
+    },
+    {
+      "file": "playback.png",
+      "kind": "actual native screenshot",
+      "crop": "26px popover border, no UI edits",
+      "sha256": "6929c5d4e2efd172cddc08a768b79e68551418af67720b8ddb500a40ff5b40d7"
+    },
+    {
+      "file": "audio-demo.mp4",
+      "kind": "actual native screen capture, silent",
+      "source": "audio-stable.mov",
+      "transform": "crop=iw-60:ih-60:30:30,scale=780:-2",
+      "sha256": "c82721aa7df4d9a55f335b03ae907137416a4f9e0076c7f9a35888cf6ff95e2f"
+    },
+    {
+      "file": "region-demo.mp4",
+      "kind": "actual native screen capture, silent",
+      "source": "region-demo-v2.mov",
+      "transform": "scale=1440:-2",
+      "sha256": "e0a02e6ee5ebe44329f6182b8b1c8856f33a3ed8512b1f6ee592f1b70fc2a562"
+    },
+    {
+      "file": "video-demo.mp4",
+      "kind": "actual native screen capture, silent",
+      "source": "video-demo.mov",
+      "transform": "crop=iw-60:ih-60:30:30,scale=780:-2",
+      "sha256": "000d4324d37b464cd269654f6f1846a8676e1e5e52edbb4ef66fb34573b7a275"
+    }
+  ]
+}
