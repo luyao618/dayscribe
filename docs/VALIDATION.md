@@ -511,6 +511,28 @@ The second real-time window recording completed, and its unchanged media passed 
 
 The earlier91m fixture-crash attempt remains a failed endurance attempt with separate recovered-file evidence. The actual eight-hour audio test and physical device/power/native-GUI follow-ups remain unfinished.
 
+## Native playback and seeking on the actual two-hour pair — 2026-09-18
+
+- `tools/CheckRecordedPlayback.swift` links the current production `RecordingPlaybackModel` and uses an isolated history index referencing the existing session manifest. It opens each published M4A/MP4 with AVPlayer, seeks to6s and3s before the end, observes actual playback progress, pauses and closes. For video it samples native `AVPlayerItemVideoOutput` buffers and saves the first picture from each section. It accepts only a new output directory and reports errors without an unhandled top-level trap.
+- The preserved two-hour pair passed all four sections. Completed seeks matched requested positions; playback advanced **1.265–1.309s** in **1.383–1.429s** of observed wall time. Native video output yielded **38/39 distinct advancing picture timestamps** at **1920×1080**. These are sampled playback pictures, not a full-file frame count. The actual buffers were visually inspected: the beginning/end reference clocks show00:00:05 and01:59:56 with intact moving markers and reference waveforms.
+- Source manifest bytes stayed unchanged, and both media SHA256 values still match the two-hour audit above. An existing output directory was rejected with exit2 without replacing its report. A malformed owned manifest produced exit1/failure.json and no passing report. Tool compilation, these actual playback/guard checks, documentation consistency and self-review passed. Product Sources and running capture binaries are unchanged.
+- Evidence: `artifacts/long-media-playback-67d05d55/verified.json`, `integrity-and-guards.json`, `mp4-section-0.png`, `mp4-section-1.png`, `artifacts/recorded-playback-build.log`, `long-media-playback.log`. The player was muted and had no visible panel: this verifies native model/player seeking and picture output, **not audible output, GUI clicks, full-duration playback or physical-device transitions**. It supplements the full-file decoding evidence and does not establish the cause of the original native-reader exception.
+
+Reproduce against an inactive, completed Scriber session with at least12s of media. Video must be a moving fixture that supplies at least5 distinct pictures within each1.25s section; this tool is not the static-screen playback check. It bounds seek-position error at50ms and records measured positions. Outputs and source files remain separate:
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import subprocess
+sources = [str(p) for p in sorted(Path('Sources/Scriber').glob('*.swift'))
+           if p.name != 'ScriberMain.swift']
+subprocess.run(['xcrun', 'swiftc', '-O', '-swift-version', '6', '-parse-as-library',
+                *sources, 'tools/CheckRecordedPlayback.swift',
+                '-o', 'artifacts/CheckRecordedPlayback'], check=True)
+PY
+artifacts/CheckRecordedPlayback /absolute/session.json /absolute/NEW-output-directory
+```
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, the real8-hour audio result and final delivery/native-GUI audit remain outstanding. The real2-hour video files passed the review above with the first native-validation exception retained. Short recovery/control checks do not substitute for the remaining long-duration or hardware acceptance.
