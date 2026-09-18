@@ -1,0 +1,106 @@
+[
+  {
+    "id": "01",
+    "start": 0.45,
+    "end": 5.75,
+    "en": "Meet Scriber. Keep what matters from meetings, calls, and videos.",
+    "zh": "认识 Scriber。留下会议、通话和视频中的重要内容。",
+    "spoken": "Meet Scriber. Keep what matters from meetings, calls, and videos."
+  },
+  {
+    "id": "02",
+    "start": 6.25,
+    "end": 11.75,
+    "en": "Click the menu bar icon, or press Option R, to open the panel.",
+    "zh": "点击菜单栏图标，或按 Option R 呼出面板。",
+    "spoken": "Click the menu bar icon, or press Option R, to open the panel."
+  },
+  {
+    "id": "03",
+    "start": 12.25,
+    "end": 17.1,
+    "en": "Record system audio and your microphone, with separate controls.",
+    "zh": "电脑声音和麦克风，分别控制、按需录制。",
+    "spoken": "Record system audio and your microphone, with separate controls."
+  },
+  {
+    "id": "04",
+    "start": 17.4,
+    "end": 21.75,
+    "en": "Start recording, then get back to what you are doing.",
+    "zh": "开始录制，然后继续手头的事。",
+    "spoken": "Start recording, then get back to what you are doing."
+  },
+  {
+    "id": "05",
+    "start": 22.25,
+    "end": 28.65,
+    "en": "See the timer and audio levels. Rename your file as you record.",
+    "zh": "查看时长和声音电平，录制中也能直接修改文件名。",
+    "spoken": "See the timer and audio levels. Rename your file as you record."
+  },
+  {
+    "id": "06",
+    "start": 29.2,
+    "end": 32.65,
+    "en": "Need the picture too? Choose screen recording.",
+    "zh": "画面也想留下？选择录屏。",
+    "spoken": "Need the picture too? Choose screen recording."
+  },
+  {
+    "id": "07",
+    "start": 32.95,
+    "end": 36.95,
+    "en": "Select a region, a window, or your whole screen.",
+    "zh": "选择一块区域、一个窗口，或整块屏幕。",
+    "spoken": "Select a region, a window, or your whole screen."
+  },
+  {
+    "id": "08",
+    "start": 37.25,
+    "end": 39.7,
+    "en": "Then stop and save.",
+    "zh": "录完，停止并保存。",
+    "spoken": "Then stop and save."
+  },
+  {
+    "id": "09",
+    "start": 40.15,
+    "end": 44.55,
+    "en": "Get a video with sound, plus a separate audio file.",
+    "zh": "得到带声音的视频，以及一份独立音频。",
+    "spoken": "Get a video with sound, plus a separate audio file."
+  },
+  {
+    "id": "10",
+    "start": 44.85,
+    "end": 47.7,
+    "en": "Audio only? One M4A file.",
+    "zh": "只录音？保存一个 M4A 文件。",
+    "spoken": "Audio only? One M four A file."
+  },
+  {
+    "id": "11",
+    "start": 48.15,
+    "end": 51.1,
+    "en": "Choose where your files go.",
+    "zh": "文件存在哪里，由你决定。",
+    "spoken": "Choose where your files go."
+  },
+  {
+    "id": "12",
+    "start": 51.35,
+    "end": 54.8,
+    "en": "Play, rename, or find recordings in your history.",
+    "zh": "在历史中播放、改名，或定位录制文件。",
+    "spoken": "Play, rename, or find recordings in your history."
+  },
+  {
+    "id": "13",
+    "start": 55.3,
+    "end": 59.65,
+    "en": "Scriber. Record it. Put it to work.",
+    "zh": "Scriber。录下来，接着用。",
+    "spoken": "Scriber. Record it. Put it to work."
+  }
+]
