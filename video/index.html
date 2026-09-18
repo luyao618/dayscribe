@@ -1,20 +1,44 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Scriber · 一分钟认识</title>
+<title>Scriber · One-minute tour</title>
 <style>
 :root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;color:#262b38;background:#f4f5f8}*{box-sizing:border-box}body{margin:0;padding:40px 5vw 48px}main{max-width:1200px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}.brand{font-weight:650;font-size:24px;display:flex;gap:12px;align-items:center}.brand svg{width:31px;height:36px}a{color:#635abc;text-decoration:none}a:hover{text-decoration:underline}a:focus-visible,video:focus-visible{outline:3px solid #7067cf;outline-offset:5px}h1{font-size:clamp(30px,4vw,48px);letter-spacing:-.04em;margin:14px 0 10px}p{color:#717887;line-height:1.7;margin:0 0 24px}video{width:100%;aspect-ratio:16/9;display:block;border-radius:18px;background:#eef0f7;box-shadow:0 22px 65px #262b3815}nav{display:flex;flex-wrap:wrap;gap:12px 26px;margin-top:25px;font-size:15px}.note{font-size:13px;margin-top:24px}button{font:inherit;border:1px solid #dedfea;background:white;color:#55516e;border-radius:8px;padding:7px 12px;cursor:pointer}button:hover{background:#edebfa}button:focus-visible{outline:3px solid #7067cf}section{margin-top:22px;display:flex;gap:8px;flex-wrap:wrap}@media(max-width:600px){body{padding:22px 18px}header{margin-bottom:22px}header a{font-size:13px}video{border-radius:10px}section{gap:7px}button{font-size:12px}}
+.transport{display:grid;grid-template-columns:auto minmax(60px,1fr) auto auto auto;align-items:center;gap:10px;margin:14px 0 20px}.transport[hidden]{display:none}.transport input{width:100%;min-width:0;accent-color:#7067cf}.time{font-size:13px;font-variant-numeric:tabular-nums;color:#717887}.player:fullscreen{box-sizing:border-box;padding:24px;background:#f4f5f8;display:flex;flex-direction:column;justify-content:center}.player:fullscreen video{max-height:calc(100vh - 120px);min-height:0;object-fit:contain}.player:fullscreen .transport{flex:none}@media(max-width:600px){.transport{gap:6px}.transport button{padding:7px 9px}.time{font-size:11px}}
 </style>
 </head>
 <body><main>
 <header><span class="brand"><svg viewBox="0 0 48 48" fill="none" stroke="#7067cf" stroke-width="3.6" stroke-linecap="round" aria-hidden="true"><path d="M5 19v10m8-19v28m8-34v40m8-29v18m8-24v30m8-20v10"/></svg>Scriber</span><a href="https://github.com/luyao618/dayscribe">GitHub ↗</a></header>
-<h1>录下来，接着用。</h1><p>一分钟认识 Scriber：在 Mac 上随手录音、录屏，拿到自己的本地文件。</p>
-<video id="film" controls playsinline preload="metadata" poster="poster.jpg" aria-label="Scriber 一分钟中文产品演示"><source src="scriber-intro-zh.mp4" type="video/mp4"><track kind="subtitles" src="scriber-zh.vtt" srclang="zh" label="中文文字稿"></video>
-<section aria-label="跳转到章节"><button data-time="0">为什么用</button><button data-time="6">呼出面板</button><button data-time="12">录音</button><button data-time="22">状态与改名</button><button data-time="29">录屏</button><button data-time="40">输出文件</button><button data-time="48">文件管理</button></section>
-<nav><a href="scriber-intro-zh.mp4" download>下载 MP4</a><a href="scriber-zh.srt" download>下载中文字幕</a><a href="../docs/USAGE.md">使用说明</a></nav>
-<p class="note">60 秒 · 1080p · 中文字幕与原创轻音乐 · 原生界面实拍，使用演示内容</p>
+<h1>Record it. Put it to work.</h1><p>Meet Scriber in one minute. Record audio and screen content on your Mac, and keep the local files.</p>
+<div class="player" id="player"><video id="film" controls playsinline preload="metadata" poster="poster-en.jpg" aria-label="Scriber product tour with English narration and English and Chinese captions"><source src="scriber-intro-en.mp4" type="video/mp4"></video><div class="transport" id="transport" hidden><button id="play" type="button" aria-label="Play video">Play</button><input id="seek" type="range" min="0" max="60" step="0.1" value="0" aria-label="Video position"><span class="time" id="time">0:00 / 1:00</span><button id="mute" type="button" aria-label="Mute audio">Mute</button><button id="full" type="button" aria-label="Enter fullscreen">⛶</button></div></div>
+<section aria-label="Jump to a chapter"><button data-time="0">Why Scriber</button><button data-time="6">Open the panel</button><button data-time="12">Audio</button><button data-time="22">Status & rename</button><button data-time="29">Screen</button><button data-time="40">Your files</button><button data-time="48">History</button></section>
+<nav><a href="scriber-intro-en.mp4" download>Download MP4</a><a href="scriber-en-bilingual.srt" download>Download EN / 中文 captions</a><a href="../docs/USAGE.md">User guide</a></nav>
+<p class="note">60 seconds · 1080p · English AI narration · English / 中文 captions<br />Native app footage uses the current Chinese interface and demo content.</p>
 </main><script>
 const film=document.getElementById('film');
-for(const button of document.querySelectorAll('[data-time]'))button.addEventListener('click',()=>{film.currentTime=Number(button.dataset.time);film.focus()});
+const player=document.getElementById('player');
+const play=document.getElementById('play');
+const seek=document.getElementById('seek');
+const mute=document.getElementById('mute');
+const full=document.getElementById('full');
+const clock=document.getElementById('time');
+const stamp=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+function update(){
+ const duration=Number.isFinite(film.duration)?film.duration:60;
+ seek.max=duration;seek.value=film.currentTime;
+ seek.setAttribute('aria-valuetext',`${stamp(film.currentTime)} of ${stamp(duration)}`);
+ clock.textContent=`${stamp(film.currentTime)} / ${stamp(duration)}`;
+ play.textContent=film.paused?'Play':'Pause';play.setAttribute('aria-label',film.paused?'Play video':'Pause video');
+ mute.textContent=film.muted?'Unmute':'Mute';mute.setAttribute('aria-label',film.muted?'Unmute audio':'Mute audio');
+}
+play.addEventListener('click',()=>{if(film.paused)film.play().catch(update);else film.pause()});
+seek.addEventListener('input',()=>{film.currentTime=Number(seek.value);update()});
+mute.addEventListener('click',()=>{film.muted=!film.muted;update()});
+full.hidden=!document.fullscreenEnabled;
+full.addEventListener('click',()=>{const action=document.fullscreenElement?document.exitFullscreen():player.requestFullscreen();action.catch(()=>{});});
+document.addEventListener('fullscreenchange',()=>full.setAttribute('aria-label',document.fullscreenElement?'Exit fullscreen':'Enter fullscreen'));
+for(const event of ['play','pause','timeupdate','ended','loadedmetadata','volumechange'])film.addEventListener(event,update);
+for(const button of document.querySelectorAll('[data-time]'))button.addEventListener('click',()=>{film.currentTime=Number(button.dataset.time);play.focus()});
+film.controls=false;document.getElementById('transport').hidden=false;update();
 </script></body></html>

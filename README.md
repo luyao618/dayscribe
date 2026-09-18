@@ -1,11 +1,11 @@
 <p align="center"><img src="docs/media/scriber-mark.svg" width="88" alt="Scriber 波形标识" /></p>
 <h1 align="center">Scriber</h1>
 <p align="center"><strong>录下来，接着用。</strong><br />Mac 菜单栏里的录音与录屏工具，让重要内容变成本地文件。</p>
-<p align="center"><a href="docs/USAGE.md">使用说明</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4">一分钟演示（MP4）</a> · <a href="#开始使用">开始使用</a> · <a href="docs/ACCEPTANCE.md">验收记录</a></p>
+<p align="center"><a href="docs/USAGE.md">使用说明</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">一分钟演示（MP4）</a> · <a href="#开始使用">开始使用</a> · <a href="docs/ACCEPTANCE.md">验收记录</a></p>
 
-[![Scriber 操作预览：录音、录屏和本地文件输出](docs/media/scriber-preview.gif)](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4)
+[![Scriber 操作预览：录音、录屏和本地文件输出](docs/media/scriber-preview.gif)](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4)
 
-<p align="center">↑ 10 秒操作预览 · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4">下载完整 60 秒 MP4</a><br /><sub>1080p · 中文字幕与原创轻音乐 · 使用演示内容的原生界面实拍</sub></p>
+<p align="center">↑ 10 秒操作预览 · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">下载完整 60 秒 MP4</a><br /><sub>1080p · 英文配音与画面说明 · 中英双语字幕 · 原生界面实拍</sub></p>
 
 ## 为什么用 Scriber
 
