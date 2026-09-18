@@ -14,6 +14,7 @@
 
 ## 当前应用包
 
+- 公开下载：[v0.1.0 预览版](https://github.com/luyao618/dayscribe/releases/tag/v0.1.0)，提供 Apple Silicon／macOS 26+ 的 DMG、ZIP 和校验文件，源码来自 `662ddb1b633c3f3901144c17038edda1f7dfeae4`。公开包使用 ad-hoc 签名、尚未 Apple 公证；首次打开可能需要在系统设置中手动放行。打包、解包／复制与语言启动检查通过，匿名下载文件与本地验证包逐字节一致；新签名下的首次放行及录制授权流程未实测。详情见 [发布说明](RELEASING.md)。
 - 路径：`build/Scriber.app`，已更新为支持简体中文／英文的原生 Release 签名包。
 - 启动时首选语言为英文则显示英文，否则默认简体中文；支持 macOS 单应用语言偏好，修改后重启生效。文件名、历史警告和保存目录不会因语言变化而改写。
 - Sources 树：`0f499020c55bf13eda95c0ad75fabf1d76cfcfcf`；二进制 SHA256：`0f3c3c5db89fd9963dc265f04fa50bc0da37841417e137300b05ad1419f81cae`。构建输入逐文件哈希及复制包验证保存在 `artifacts/localization/final-package.json`。
