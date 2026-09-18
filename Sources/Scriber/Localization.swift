@@ -54,10 +54,24 @@ enum L10n {
         #endif
     }()
 
+    private static let languageBundles: [AppLanguage: Bundle] = {
+        guard let root = resourceBundle.resourceURL,
+              let folders = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return [:] }
+        // SwiftPM canonicalizes zh-Hans.lproj to zh-hans.lproj. Use actual paths
+        // so an explicit non-current localization also works in a test bundle.
+        return Dictionary(uniqueKeysWithValues: AppLanguage.allCases.compactMap { language in
+            guard let folder = folders.first(where: {
+                $0.pathExtension == "lproj" &&
+                $0.deletingPathExtension().lastPathComponent.caseInsensitiveCompare(language.rawValue) == .orderedSame
+            }), let bundle = Bundle(url: folder) else { return nil }
+            return (language, bundle)
+        })
+    }()
+
+    static func bundle(for language: AppLanguage) -> Bundle? { languageBundles[language] }
+
     static func text(_ message: Message, language: AppLanguage = .current) -> String {
-        let bundle = resourceBundle.url(forResource: language.rawValue, withExtension: "lproj")
-            .flatMap(Bundle.init(url:))
-        let template = bundle?.localizedString(forKey: message.key, value: message.key, table: "Localizable")
+        let template = bundle(for: language)?.localizedString(forKey: message.key, value: message.key, table: "Localizable")
             ?? message.key
         return render(template, arguments: message.arguments)
     }

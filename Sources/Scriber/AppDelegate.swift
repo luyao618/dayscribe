@@ -174,12 +174,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let menu = NSMenu()
         let app = NSMenuItem()
         app.submenu = NSMenu(title: "Scriber")
-        app.submenu?.addItem(withTitle: "退出 Scriber", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        app.submenu?.addItem(withTitle: L10n.text("退出 Scriber"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(app)
         let edit = NSMenuItem()
-        edit.submenu = NSMenu(title: "编辑")
-        for (title, action, key) in [("撤销", "undo:", "z"), ("剪切", "cut:", "x"),
-                                     ("拷贝", "copy:", "c"), ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a")] {
+        edit.submenu = NSMenu(title: L10n.text("编辑"))
+        for (title, action, key) in [(L10n.text("撤销"), "undo:", "z"), (L10n.text("剪切"), "cut:", "x"),
+                                     (L10n.text("拷贝"), "copy:", "c"), (L10n.text("粘贴"), "paste:", "v"), (L10n.text("全选"), "selectAll:", "a")] {
             edit.submenu?.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
         }
         menu.addItem(edit)
@@ -201,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 "preferredLanguages": Locale.preferredLanguages,
                 "audioTitle": L10n.text("录音"),
                 "resourceBundle": L10n.resourceBundle.bundleURL.path,
+                "languageBundle": L10n.bundle(for: AppLanguage.current)?.bundleURL.path ?? "",
                 "microphoneUsage": Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") as? String ?? ""
             ]
             try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
@@ -411,8 +412,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func chooseDirectory(for mode: RecordingMode) async {
         guard directoryPicker == nil, !isQuitting else { return }
         let picker = NSOpenPanel()
-        picker.title = "选择\(mode.title)保存位置"
-        picker.prompt = "选择文件夹"
+        picker.title = L10n.text("选择\(mode.title)保存位置")
+        picker.prompt = L10n.text("选择文件夹")
         picker.canChooseDirectories = true
         picker.canChooseFiles = false
         picker.allowsMultipleSelection = false
@@ -430,7 +431,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         guard !isQuitting else { return }
         if response == .OK, let url = picker.url {
             do { try await recorder.setDestination(url, for: mode); refreshHistory(discover: true) }
-            catch { recorder.reportControlMessage("无法更改保存位置：\(error.localizedDescription)") }
+            catch { recorder.reportControlMessage(L10n.text("无法更改保存位置：\(error.localizedDescription)")) }
         }
         writeUIReport()
         showPanel()
@@ -473,9 +474,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func renameHistory(_ id: UUID, title: String) async -> String? {
-        guard !historyRenameInProgress, !isQuitting else { return "正在处理文件，请稍候。" }
-        guard recovery.currentID != id else { return "这条录制正在恢复，请稍候。" }
-        guard !(recorder.sessionID == id && recorder.state.active) else { return "请先停止并保存当前录制。" }
+        guard !historyRenameInProgress, !isQuitting else { return L10n.text("正在处理文件，请稍候。") }
+        guard recovery.currentID != id else { return L10n.text("这条录制正在恢复，请稍候。") }
+        guard !(recorder.sessionID == id && recorder.state.active) else { return L10n.text("请先停止并保存当前录制。") }
         historyRenameInProgress = true
         let selectedKind = playback.selectedKind
         defer { historyRenameInProgress = false; writeUIReport(); finishDeferredTermination() }
@@ -485,7 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             let message: String?
             if recorder.sessionID == id {
                 let success = await recorder.renameSavedRecording(title)
-                message = success ? nil : recorder.controlMessage ?? "未能完成改名。"
+                message = success ? nil : recorder.controlMessage ?? L10n.text("未能完成改名。")
             } else {
                 message = try await store.rename(id, title: title).errorMessage
             }
@@ -502,7 +503,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func installPanel<Content: View>(_ content: Content) {
-        let controller = NSHostingController(rootView: content)
+        let controller = NSHostingController(rootView: content.environment(\.locale, AppLanguage.current.locale))
         controller.sizingOptions = [.preferredContentSize]
         controller.view.appearance = NSAppearance(named: .aqua)
         popover.contentViewController = controller

@@ -10,12 +10,12 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         var active: Bool { self == .authorizing || self == .recording || self == .finishing }
         var title: String {
             switch self {
-            case .idle: "未录制"
-            case .authorizing: "等待录制权限"
-            case .recording: "正在录音"
-            case .finishing: "正在保存"
-            case .completed: "已保存"
-            case .failed: "采集未完成"
+            case .idle: L10n.text("未录制")
+            case .authorizing: L10n.text("等待录制权限")
+            case .recording: L10n.text("正在录音")
+            case .finishing: L10n.text("正在保存")
+            case .completed: L10n.text("已保存")
+            case .failed: L10n.text("采集未完成")
             }
         }
     }
@@ -101,23 +101,23 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     var microphoneName: String { sourceDeviceName(.microphone) }
 
     func sourceDeviceName(_ source: AudioSource) -> String {
-        guard deviceReadError == nil else { return "设备状态未知" }
-        guard let audioDevices else { return "正在识别设备" }
-        if source == .system { return audioDevices.defaultOutput?.name ?? "无默认输出设备" }
+        guard deviceReadError == nil else { return L10n.text("设备状态未知") }
+        guard let audioDevices else { return L10n.text("正在识别设备") }
+        if source == .system { return audioDevices.defaultOutput?.name ?? L10n.text("无默认输出设备") }
         let uid = state.active ? microphoneDeviceID : nil
-        return audioDevices.microphone(uid: uid)?.name ?? (uid == nil ? "无可用麦克风" : "麦克风已断开")
+        return audioDevices.microphone(uid: uid)?.name ?? (uid == nil ? L10n.text("无可用麦克风") : L10n.text("麦克风已断开"))
     }
 
     func sourceDeviceHelp(_ source: AudioSource) -> String {
         if let failure = sourceFailures[source], sources.contains(source) { return failure }
         if let deviceReadError { return deviceReadError }
         let name = sourceDeviceName(source)
-        if source == .system { return "系统默认输出：\(name)；电脑声音采集系统播放的声音。" }
+        if source == .system { return L10n.text("系统默认输出：\(name)；电脑声音采集系统播放的声音。") }
         if state.active, let selected = microphoneDeviceID, let next = audioDevices?.defaultInput,
            selected != next.uid {
-            return "本次麦克风：\(name)；系统默认已改为 \(next.name)。"
+            return L10n.text("本次麦克风：\(name)；系统默认已改为 \(next.name)。")
         }
-        return "\(state.active ? "本次麦克风" : "系统默认输入")：\(name)"
+        return L10n.text("\(state.active ? L10n.text("本次麦克风") : L10n.text("系统默认输入"))：\(name)")
     }
 
     private func updateAudioDevices(_ reading: AudioDeviceMonitor.Reading) {
@@ -131,12 +131,12 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     var isRecording: Bool { state == .recording }
     var sourceFailureMessage: String? {
         guard isRecording else { return nil }
-        if !recoveringSources.isEmpty { return "正在重新连接声音设备…" }
+        if !recoveringSources.isEmpty { return L10n.text("正在重新连接声音设备…") }
         guard !sourceFailures.isEmpty else { return recoveryNotice }
-        if sources.allSatisfy({ sourceFailures[$0] != nil }) { return "声音采集中断，正在尝试恢复。" }
+        if sources.allSatisfy({ sourceFailures[$0] != nil }) { return L10n.text("声音采集中断，正在尝试恢复。") }
         let failed = AudioSource.allCases.filter { sourceFailures[$0] != nil }
-            .map { $0 == .system ? "电脑声音" : "麦克风" }.joined(separator: "、")
-        return "\(failed)采集中断，其余声音继续录制。"
+            .map { $0 == .system ? L10n.text("电脑声音") : L10n.text("麦克风") }.joined(separator: L10n.text("、"))
+        return L10n.text("\(failed)采集中断，其余声音继续录制。")
     }
     var isBusy: Bool { state == .authorizing || state == .finishing }
     var elapsedText: String {
@@ -155,15 +155,15 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     func sourceStatus(_ source: AudioSource) -> String {
-        guard sources.contains(source) else { return "已关闭" }
-        if recoveringSources.contains(source) { return "正在重连" }
-        if sourceFailures[source] != nil { return "采集中断" }
-        if isChangingSources && recoveringSources.isEmpty { return "正在切换" }
-        if state == .failed { return "已停止" }
-        if isBusy { return state == .authorizing ? "等待授权" : "正在保存" }
-        guard isRecording else { return "未录制" }
-        guard let power = sourcePower(source) else { return "等待声音数据" }
-        return power > -65 ? "已检测到声音" : "等待声音"
+        guard sources.contains(source) else { return L10n.text("已关闭") }
+        if recoveringSources.contains(source) { return L10n.text("正在重连") }
+        if sourceFailures[source] != nil { return L10n.text("采集中断") }
+        if isChangingSources && recoveringSources.isEmpty { return L10n.text("正在切换") }
+        if state == .failed { return L10n.text("已停止") }
+        if isBusy { return state == .authorizing ? L10n.text("等待授权") : L10n.text("正在保存") }
+        guard isRecording else { return L10n.text("未录制") }
+        guard let power = sourcePower(source) else { return L10n.text("等待声音数据") }
+        return power > -65 ? L10n.text("已检测到声音") : L10n.text("等待声音")
     }
 
     func reportControlMessage(_ message: String?) { controlMessage = message }
@@ -200,7 +200,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     /// Only changes the desired final basename; open encoder URLs never move.
     @discardableResult
     func setRecordingTitle(_ title: String) -> Bool {
-        guard isRecording else { controlMessage = "当前无法修改录制名称。"; return false }
+        guard isRecording else { controlMessage = L10n.text("当前无法修改录制名称。"); return false }
         do {
             recordingTitle = try RecordingFilename.validated(title)
             controlMessage = nil
@@ -236,8 +236,8 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     @discardableResult
     func setSources(_ selected: Set<AudioSource>) async -> Bool {
         controlMessage = nil
-        guard !selected.isEmpty else { controlMessage = "至少保留一路声音。"; return false }
-        guard canChangeSources else { controlMessage = "声音正在准备，请稍候。"; return false }
+        guard !selected.isEmpty else { controlMessage = L10n.text("至少保留一路声音。"); return false }
+        guard canChangeSources else { controlMessage = L10n.text("声音正在准备，请稍候。"); return false }
         guard selected != sources else { return true }
         if !state.active {
             sources = selected
@@ -248,7 +248,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         }
         guard let output, let captureFilter else { return false }
         guard selected.contains(where: { sourceFailures[$0] == nil }) else {
-            controlMessage = "另一路声音尚未恢复，请保留仍在工作的声音来源。"
+            controlMessage = L10n.text("另一路声音尚未恢复，请保留仍在工作的声音来源。")
             return false
         }
         let token = generation
@@ -259,7 +259,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             let allowed = authorized == .notDetermined
                 ? await AVCaptureDevice.requestAccess(for: .audio) : authorized == .authorized
             guard generation == token, isRecording else { return false }
-            guard allowed else { controlMessage = "麦克风权限未开启，当前录音继续。"; return false }
+            guard allowed else { controlMessage = L10n.text("麦克风权限未开启，当前录音继续。"); return false }
         }
         let added = selected.subtracting(sources)
         // Prepare additions while the old mix and streams remain live. Only
@@ -281,7 +281,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 if let capture { try? await capture.stopCapture() }
                 guard generation == token, isRecording else { return false }
             }
-            controlMessage = "无法开启新的声音来源，原有录制继续：\(error.localizedDescription)"
+            controlMessage = L10n.text("无法开启新的声音来源，原有录制继续：\(error.localizedDescription)")
             return false
         }
         do {
@@ -304,7 +304,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             return true
         } catch {
             guard generation == token, isRecording else { return false }
-            await stop(error: "无法切换声音来源：\(error.localizedDescription)")
+            await stop(error: L10n.text("无法切换声音来源：\(error.localizedDescription)"))
             return false
         }
     }
@@ -331,10 +331,10 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private func startSource(_ source: AudioSource, output: MixedAudioOutput, filter: SCContentFilter) async throws {
         if source == .microphone {
             guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-                throw AudioSourceConnectionError(message: "麦克风权限未开启。")
+                throw AudioSourceConnectionError(message: L10n.text("麦克风权限未开启。"))
             }
             guard let uid = microphoneDeviceID, AVCaptureDevice(uniqueID: uid)?.isConnected == true else {
-                throw AudioSourceConnectionError(message: "麦克风设备不可用。")
+                throw AudioSourceConnectionError(message: L10n.text("麦克风设备不可用。"))
             }
         }
         let capture = SCStream(filter: filter,
@@ -351,7 +351,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     }
 
     private func waitForSource(_ source: AudioSource, output: MixedAudioOutput, token: UUID) async throws {
-        guard let capture = streams[source] else { throw AudioSourceConnectionError(message: "声音采集未启动。") }
+        guard let capture = streams[source] else { throw AudioSourceConnectionError(message: L10n.text("声音采集未启动。")) }
         let deadline = ContinuousClock.now + .milliseconds(750)
         while ContinuousClock.now < deadline {
             let metrics = await output.snapshot()
@@ -365,7 +365,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
             try await Task.sleep(for: .milliseconds(25))
         }
-        throw AudioSourceConnectionError(message: "重新连接后未收到声音数据。")
+        throw AudioSourceConnectionError(message: L10n.text("重新连接后未收到声音数据。"))
     }
 
     private func saveSourcePreference() {
@@ -417,7 +417,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             let date = DateFormatter()
             date.locale = Locale(identifier: "en_US_POSIX")
             date.dateFormat = "yyyy-MM-dd HH.mm.ss"
-            recordingTitle = try RecordingFilename.validated(title ?? "\(recordScreen ? "录屏" : "录音") \(date.string(from: Date()))")
+            recordingTitle = try RecordingFilename.validated(title ?? "\(recordScreen ? L10n.text("录屏") : L10n.text("录音")) \(date.string(from: Date()))")
             let reading = readStorage
             let initialStorage = try await Task.detached {
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -436,7 +436,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 }
                 guard generation == token, state == .authorizing else { return }
                 if !authorized {
-                    let message = "请在系统设置 → 隐私与安全性 → 麦克风中允许 Scriber。"
+                    let message = L10n.text("请在系统设置 → 隐私与安全性 → 麦克风中允许 Scriber。")
                     guard sources.contains(.system) else { throw AudioWriteError.encoding(message) }
                     sourceFailures[.microphone] = message
                     sourceFailureHistory[.microphone] = message
@@ -449,7 +449,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             guard generation == token, state == .authorizing else { return }
             guard let display = content.displays.first(where: { $0.displayID == CGMainDisplayID() })
                     ?? content.displays.first else {
-                throw AudioWriteError.encoding("没有可用的显示器。")
+                throw AudioWriteError.encoding(L10n.text("没有可用的显示器。"))
             }
             let desiredTitle = recordingTitle
             let owned = try await Task.detached {
@@ -521,7 +521,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 }
                 guard generation == token, state == .authorizing else { return }
             }
-            guard !streams.isEmpty else { throw AudioWriteError.encoding("所选声音来源均无法采集。") }
+            guard !streams.isEmpty else { throw AudioWriteError.encoding(L10n.text("所选声音来源均无法采集。")) }
             state = .recording
             monitorStorage(directory: session.stagingDirectory, video: recordScreen, volume: initialStorage.volumeID, token: token)
             onUpdate?()
@@ -561,7 +561,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         generation = UUID()
         self.interrupted = interrupted
         let sourceErrors = AudioSource.allCases.compactMap { sourceFailureHistory[$0] }.joined(separator: "\n")
-        let messages = [error, sourceErrors.isEmpty ? nil : "录制期间有声音中断。\n" + sourceErrors].compactMap { $0 }
+        let messages = [error, sourceErrors.isEmpty ? nil : L10n.text("录制期间有声音中断。\n") + sourceErrors].compactMap { $0 }
         errorMessage = messages.isEmpty ? nil : messages.joined(separator: "\n")
         state = .finishing
         progress?.cancel()
@@ -600,7 +600,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 if errorMessage == nil { errorMessage = error.localizedDescription }
             }
         } else if errorMessage == nil {
-            errorMessage = "采集在音频开始前结束。"
+            errorMessage = L10n.text("采集在音频开始前结束。")
         }
         writer = nil
         if let videoOutput, let captureEnd {
@@ -629,7 +629,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
         }
         if videoURL != nil, audioSaved != videoSaved {
-            let saved = audioSaved ? "音频已保存，视频未完成。" : "视频已保存，音频未完成。"
+            let saved = audioSaved ? L10n.text("音频已保存，视频未完成。") : L10n.text("视频已保存，音频未完成。")
             errorMessage = saved + (errorMessage ?? "")
         }
         sessionLease?.release()
@@ -650,7 +650,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             // wait for that operation instead of accepting stop()'s early return.
             await withCheckedContinuation { stopWaiters.append($0) }
         } else {
-            await stop(interrupted: true, error: "系统即将睡眠，录制已中断。")
+            await stop(interrupted: true, error: L10n.text("系统即将睡眠，录制已中断。"))
         }
     }
 
@@ -722,7 +722,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         guard isRecording, let capture = streams[source] else { return }
         try? await capture.stopCapture()
         guard isRecording, streams[source] === capture else { return }
-        if reportFailure { pendingSourceFailures[source] = (capture, "诊断中停止了采集流。") }
+        if reportFailure { pendingSourceFailures[source] = (capture, L10n.text("诊断中停止了采集流。")) }
     }
 
     private func checkSourceFailures() async {
@@ -733,7 +733,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         for (source, capture) in streams {
             let last = captureMetrics.lastTimes[source] ?? sourceStartTimes[source] ?? now
             if now - last > 1 {
-                pendingSourceFailures[source] = (capture, "超过 1 秒未收到声音数据。")
+                pendingSourceFailures[source] = (capture, L10n.text("超过 1 秒未收到声音数据。"))
             } else if captureMetrics.lastTimes[source] != nil, pendingSourceFailures[source] == nil {
                 recoveryPolicy.received(source, at: last)
             }
@@ -768,11 +768,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
                 try await waitForSource(source, output: output, token: token)
                 guard generation == token, isRecording else { return }
                 sourceFailures[source] = nil
-                if let previous = sourceFailureHistory[source] { sourceFailureHistory[source] = previous + "（已恢复）" }
-                recoveryNotice = source == .microphone ? "麦克风已恢复：\(microphoneName)" : "电脑声音已恢复。"
+                if let previous = sourceFailureHistory[source] { sourceFailureHistory[source] = previous + L10n.text("（已恢复）") }
+                recoveryNotice = source == .microphone ? L10n.text("麦克风已恢复：\(microphoneName)") : L10n.text("电脑声音已恢复。")
             } catch {
                 guard generation == token, isRecording else { return }
-                await isolateSource(source, message: "重连失败：\(error.localizedDescription)", output: output)
+                await isolateSource(source, message: L10n.text("重连失败：\(error.localizedDescription)"), output: output)
                 guard generation == token, isRecording else { return }
             }
             recoveringSources.remove(source)
@@ -780,7 +780,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         captureMetrics = await output.snapshot()
         guard generation == token, isRecording else { return }
         if streams.isEmpty, sources.allSatisfy({ recoveryPolicy.exhausted($0) }) {
-            await stop(error: "所有声音来源均无法恢复，录制已结束。")
+            await stop(error: L10n.text("所有声音来源均无法恢复，录制已结束。"))
         }
     }
 
@@ -791,7 +791,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         if let previous {
             if current.defaultOutput?.uid != previous.defaultOutput?.uid || current.defaultOutput?.id != previous.defaultOutput?.id {
                 recoveryPolicy.reset(.system)
-                recoveryNotice = "系统输出已改为：\(current.defaultOutput?.name ?? "无可用设备")"
+                recoveryNotice = L10n.text("系统输出已改为：\(current.defaultOutput?.name ?? L10n.text("无可用设备"))")
             }
             if current.defaultInput?.uid != previous.defaultInput?.uid || current.defaultInput?.id != previous.defaultInput?.id ||
                 current.microphone(uid: microphoneDeviceID)?.id != previous.microphone(uid: microphoneDeviceID)?.id {
@@ -802,13 +802,13 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         let target = AudioRecoveryPolicy.microphoneTarget(snapshot: current, selected: microphoneDeviceID,
                                                           followsDefault: followsDefaultMicrophone)
         if current.microphone(uid: microphoneDeviceID) == nil || (target != nil && target != microphoneDeviceID) {
-            pendingSourceFailures[.microphone] = (capture, "系统输入设备已变化。")
+            pendingSourceFailures[.microphone] = (capture, L10n.text("系统输入设备已变化。"))
         }
     }
 
     private func isolateSource(_ source: AudioSource, message: String, output: MixedAudioOutput) async {
-        let name = source == .system ? "电脑声音" : "麦克风"
-        sourceFailures[source] = "\(name)：\(message)"
+        let name = source == .system ? L10n.text("电脑声音") : L10n.text("麦克风")
+        sourceFailures[source] = L10n.text("\(name)：\(message)")
         sourceFailureHistory[source] = sourceFailures[source]
         sourceStartTimes[source] = nil
         let capture = streams.removeValue(forKey: source)
@@ -820,11 +820,11 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
     private nonisolated static func captureMessage(_ error: any Error, forVideo: Bool = false) -> String {
         let error = error as NSError
         if error.domain == SCStreamErrorDomain, error.code == SCStreamError.Code.userDeclined.rawValue {
-            return "请在系统设置 → 隐私与安全性 → 屏幕与系统音频录制中允许 Scriber，然后重启应用重试。"
+            return L10n.text("请在系统设置 → 隐私与安全性 → 屏幕与系统音频录制中允许 Scriber，然后重启应用重试。")
         }
         if forVideo, error.domain == SCStreamErrorDomain,
            [SCStreamError.Code.noWindowList, .noDisplayList, .noCaptureSource].contains(where: { $0.rawValue == error.code }) {
-            return "所选窗口或屏幕已不可用，请重新选择录屏范围后再开始。"
+            return L10n.text("所选窗口或屏幕已不可用，请重新选择录屏范围后再开始。")
         }
         return error.localizedDescription
     }
