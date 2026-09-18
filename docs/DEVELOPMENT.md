@@ -4,7 +4,16 @@
 
 当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏／窗口／区域 MP4+M4A 已有真实采集验证，正式录屏入口和原生选择器已接入，实际点击流程已验证。录制已使用目标目录中的独立临时文件，完成写入后防覆盖保存；面板支持录制前、录制中和保存后改名，已通过实际界面操作验证；录音、录屏目录可分别设置并记住，录制中更改从下一次生效；新录制已登记到持久化历史索引，历史列表、搜索和 Finder 定位已接入；详情播放已接入，详情支持历史记录改名。
 
-需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
+源码构建需要 macOS 26+、Apple Silicon 和 Xcode 26：
+
+```sh
+git clone https://github.com/luyao618/dayscribe.git scriber
+cd scriber
+./scripts/build-app.sh release
+open build/Scriber.app
+```
+
+菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
 
 脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
 

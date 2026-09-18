@@ -2,7 +2,7 @@
 <h1 align="center">Scriber</h1>
 <p align="center"><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
 <p align="center"><strong>录下来，接着用。</strong><br />Mac 菜单栏里的录音与录屏工具，让重要内容变成本地文件。</p>
-<p align="center"><a href="docs/USAGE.md">使用说明</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">一分钟演示（MP4）</a> · <a href="#开始使用">开始使用</a> · <a href="docs/ACCEPTANCE.md">验收记录</a></p>
+<p align="center"><a href="https://github.com/luyao618/dayscribe/releases/download/v0.1.0/Scriber-0.1.0-macOS-arm64.dmg"><strong>下载 Mac 版</strong></a> · <a href="docs/USAGE.md">使用说明</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">一分钟演示（MP4）</a> · <a href="docs/ACCEPTANCE.md">验收记录</a></p>
 
 [![Scriber 操作预览：录音、录屏和本地文件输出](docs/media/scriber-preview.gif)](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4)
 
@@ -36,18 +36,17 @@ Scriber 专注录制与文件管理。总结、转录和分析由你选择的其
 
 ## 开始使用
 
-运行需要 **Apple Silicon Mac 与 macOS 26+**。当前 v0.1 面向个人使用，通过源码构建并本地签名；构建另需 **Xcode 26**。
+需要 **Apple Silicon Mac（M1 或更新芯片）与 macOS 26+**。
 
-界面支持简体中文和英文：启动时跟随系统首选语言，英文系统显示英文，其余默认中文。也可以在 macOS「语言与地区 → 应用程序」中单独设置 Scriber 的语言，修改后重启应用生效。已有文件名和保存目录保持不变。
+1. **[下载 Scriber DMG](https://github.com/luyao618/dayscribe/releases/download/v0.1.0/Scriber-0.1.0-macOS-arm64.dmg)。** 也可在 [Release 页面](https://github.com/luyao618/dayscribe/releases/tag/v0.1.0)选择 ZIP。
+2. 打开 DMG，将 **Scriber.app** 拖进 **Applications（应用程序）**。
+3. 打开 Scriber，点击菜单栏波形图标，或按 **⌥R** 开始使用。
 
-```sh
-git clone https://github.com/luyao618/dayscribe.git scriber
-cd scriber
-./scripts/build-app.sh release
-open build/Scriber.app
-```
+无需编译，也无需安装 Xcode。当前是**未经过 Apple 公证的预览版**；首次打开若被 macOS 拦截，请前往 **系统设置 → 隐私与安全性 → 仍要打开**，为 Scriber 确认放行。
 
-首次使用按系统提示授予「屏幕与系统音频录制」和「麦克风」权限。当前仅录麦克风时也需要屏幕与系统音频录制权限。重新构建前先退出 Scriber。
+首次录制按提示授予「屏幕与系统音频录制」和「麦克风」权限。当前仅录麦克风时也需要屏幕与系统音频录制权限。
+
+界面支持简体中文和英文：系统首选英文时显示英文，其余默认中文。也可通过 macOS 单应用语言设置切换，重启生效。
 
 默认保存在 `~/Movies/Scriber/录音` 与 `~/Movies/Scriber/录屏`。点击面板中的目录行即可更改。应用运行不依赖 Python、FFmpeg 或云服务。
 
@@ -62,7 +61,8 @@ v0.1 的录制面板、双路声音、三种录屏范围、配对文件、历史
 ## 文档与开发
 
 - [使用说明](docs/USAGE.md)：权限、录音、录屏、目录与历史。
-- [开发与验证入口](docs/DEVELOPMENT.md)：构建、签名、真实采集检查及实现行为。
+- [开发与验证入口](docs/DEVELOPMENT.md)：从源码构建（需要 Xcode 26）、签名、真实采集检查及实现行为。
+- [发布预编译应用](docs/RELEASING.md)：DMG／ZIP 打包、校验与发布流程。
 - [需求与边界](SPEC.md) · [详细验证记录](docs/VALIDATION.md)。
 - [产品短片与制作源文件](video/README.md)：分镜、字幕、素材来源、本地播放器与重新生成方法。
 - [面板设计](design/DESIGN.md) · [交互原型](design/index.html)：已确认的视觉基线；原型使用演示数据。

@@ -2,7 +2,7 @@
 <h1 align="center">Scriber</h1>
 <p align="center"><a href="README.md">简体中文</a> · <strong>English</strong></p>
 <p align="center"><strong>Record it. Put it to work.</strong><br />Audio and screen recording from your Mac's menu bar. Keep what matters as local files.</p>
-<p align="center"><a href="docs/USAGE.md">User guide</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">One-minute demo (MP4)</a> · <a href="#get-started">Get started</a> · <a href="docs/ACCEPTANCE.md">Validation status</a></p>
+<p align="center"><a href="https://github.com/luyao618/dayscribe/releases/download/v0.1.0/Scriber-0.1.0-macOS-arm64.dmg"><strong>Download for Mac</strong></a> · <a href="docs/USAGE.md">User guide</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4">One-minute demo (MP4)</a> · <a href="docs/ACCEPTANCE.md">Validation status</a></p>
 
 [![Scriber preview: audio recording, screen capture and local file output](docs/media/scriber-preview.gif)](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-en.mp4)
 
@@ -36,18 +36,17 @@ Screen recording supports a **selected region, a single window or an entire disp
 
 ## Get started
 
-Scriber requires an **Apple Silicon Mac running macOS 26+**. The current v0.1 is intended for personal use and is built from source with a local signature. Building also requires **Xcode 26**.
+Requires an **Apple Silicon Mac (M1 or later) running macOS 26+**.
 
-The interface supports English and Simplified Chinese. At launch, Scriber uses English when the primary system language is English; otherwise, it defaults to Simplified Chinese. You can also choose a language for Scriber under macOS **Language & Region → Applications**. Restart the app after changing the language. Existing filenames and save locations stay unchanged.
+1. **[Download Scriber DMG](https://github.com/luyao618/dayscribe/releases/download/v0.1.0/Scriber-0.1.0-macOS-arm64.dmg).** A ZIP is also available on the [release page](https://github.com/luyao618/dayscribe/releases/tag/v0.1.0).
+2. Open the DMG and drag **Scriber.app** into **Applications**.
+3. Open Scriber, then click the menu-bar waveform or press **⌥R**.
 
-```sh
-git clone https://github.com/luyao618/dayscribe.git scriber
-cd scriber
-./scripts/build-app.sh release
-open build/Scriber.app
-```
+No compilation or Xcode installation is needed. This is a **preview that has not been notarized by Apple**. If macOS blocks the first launch, go to **System Settings → Privacy & Security → Open Anyway** for Scriber and confirm.
 
-On first use, follow the macOS prompts to grant **Screen & System Audio Recording** and **Microphone** permissions. The current implementation also needs Screen & System Audio Recording permission for microphone-only capture. Quit Scriber before rebuilding it.
+When you first record, follow the prompts to grant **Screen & System Audio Recording** and **Microphone** permissions. The current implementation also needs Screen & System Audio Recording permission for microphone-only capture.
+
+The interface uses English when the primary system language is English and defaults to Simplified Chinese otherwise. macOS per-app language settings are supported; restart Scriber after changing the language.
 
 The default folders are `~/Movies/Scriber/录音` for audio and `~/Movies/Scriber/录屏` for screen recordings. Click the destination row in the panel to change them. The app runs without Python, FFmpeg or cloud services.
 
@@ -64,7 +63,8 @@ Real-time **eight-hour audio** and **two-hour screen recording** runs have file-
 Some linked guides are currently in Chinese.
 
 - [User guide](docs/USAGE.md): permissions, audio and screen recording, destinations and history.
-- [Development and validation entry points](docs/DEVELOPMENT.md): builds, signing, real capture checks and implementation behavior.
+- [Development and validation entry points](docs/DEVELOPMENT.md): source builds (Xcode 26 required), signing, real capture checks and implementation behavior.
+- [Publishing prebuilt apps](docs/RELEASING.md): DMG/ZIP packaging, verification and release steps.
 - [Requirements and scope](SPEC.md) · [Detailed validation log](docs/VALIDATION.md).
 - [Product film and production source](video/README.md): storyboard, captions, provenance, local player and rendering instructions.
 - [Panel design](design/DESIGN.md) · [Interactive prototype](design/index.html): the approved visual baseline; the prototype uses demo data.

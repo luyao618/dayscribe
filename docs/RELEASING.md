@@ -44,3 +44,14 @@
 已实际从隔离源码编译并生成 DMG／ZIP。ZIP 解压、DMG 只读挂载与复制出的应用文件逐项一致，arm64／最低系统／ad-hoc 签名及校验和通过。两种安装来源各完成英、中、未支持语言回退的独立进程启动检查，资源均来自包内；本机开发应用与个人历史未变。重复使用输出目录被拒绝，已有包哈希不变。证据保留在本地 `artifacts/releases/package-check-p_k99sqk/verified.json`。
 
 Gatekeeper 评估明确拒绝该未公证预览，符合当前发布限制；未实际执行用户首次打开的「仍要打开」流程，也没有修改任何系统安全设置。此次验证不代表换签名后的真实录制权限、完整交互或硬件验收通过。
+
+## 已发布：v0.1.0
+
+[GitHub Release](https://github.com/luyao618/dayscribe/releases/tag/v0.1.0) 提供首个预览版，源码提交为 `662ddb1b633c3f3901144c17038edda1f7dfeae4`。该提交及版本标签均经 GitHub 验证签名。最终构建再次通过 ZIP／DMG 内容、复制安装、六次语言启动、签名及校验检查；证据在 `artifacts/releases/package-check-q1vprhqy/verified.json`。
+
+| 下载文件 | SHA256 |
+|---|---|
+| Scriber-0.1.0-macOS-arm64.dmg | `3e8cf805a7fa9b5344ba1574bc54214ffb8a93779a34472f5e5b9fc705f3f71f` |
+| Scriber-0.1.0-macOS-arm64.zip | `74e092ea7715d8ec50ebbcecd7cb9b58cc1afe253c1d597f1926f675f2f809c8` |
+
+发布前核对了草稿中四个资产的大小、服务端 SHA256 和双语说明；发布后通过未登录的公开链接回读全部文件，逐字节匹配本地包，`SHA256SUMS` 全部通过。记录在 `artifacts/releases/public-download-verified.json`。本机开发签名应用继续保留，未用公开包覆盖。
