@@ -2,6 +2,8 @@
 
 以下内容用于启动 Goal；本文件本身不会启动实现或创建 PR。
 
+2026-09-18 收尾补充：本次 Goal 已交付，用户将耳机物理切换、长录音麦克风重连与连续性评估、真实锁屏／睡眠／合盖三项转为后续自行验收，发现问题再提 bug，不再阻塞 Goal 完成。以下保留最初的启动提示；当前验收范围以 [SPEC.md 第 7 节](SPEC.md#7-验收清单) 和 [验收概览](docs/ACCEPTANCE.md) 为准，未测项和原失败记录不改为通过。
+
 ```text
 /goal 按 /Users/yao/work/code/personal/dayscribe/SPEC.md 实现 Scriber v0.1，以 /Users/yao/work/code/personal/dayscribe/design/index.html 为 UI 基线，交付可在我当前 Apple Silicon / macOS 26 的 Mac 上双击运行的原生 Scriber.app。
 
