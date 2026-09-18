@@ -41,9 +41,9 @@ private enum RecordingFileError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName: "名称不能为空、以点开头或包含斜杠、冒号、换行等字符；名称过长时请缩短。"
-        case .invalidFiles: "录制文件不存在、不是普通文件，或文件列表无效。"
-        case .tooManyCollisions: "同名文件过多，请换一个文件名。"
+        case .invalidName: L10n.text("名称不能为空、以点开头或包含斜杠、冒号、换行等字符；名称过长时请缩短。")
+        case .invalidFiles: L10n.text("录制文件不存在、不是普通文件，或文件列表无效。")
+        case .tooManyCollisions: L10n.text("同名文件过多，请换一个文件名。")
         }
     }
 }
@@ -111,12 +111,12 @@ struct RecordingFileSet: Sendable {
                             try move(locations[kind]!, originals[kind]!)
                             locations[kind] = originals[kind]
                         } catch {
-                            rollbackErrors.append("\(locations[kind]!.path)：\(error.localizedDescription)")
+                            rollbackErrors.append(L10n.text("\(locations[kind]!.path)：\(error.localizedDescription)"))
                         }
                     }
                     if !rollbackErrors.isEmpty {
                         return .init(files: .init(urls: locations), title: nil,
-                                     errorMessage: "保存或改名未完成：\(error.localizedDescription)；部分文件未能移回原位置：\(rollbackErrors.joined(separator: "；"))")
+                                     errorMessage: L10n.text("保存或改名未完成：\(error.localizedDescription)；部分文件未能移回原位置：\(rollbackErrors.joined(separator: L10n.text("；")))"))
                     }
                     let failure = error as NSError
                     if failure.domain == NSPOSIXErrorDomain && failure.code == Int(EEXIST) { continue }
@@ -126,7 +126,7 @@ struct RecordingFileSet: Sendable {
             throw RecordingFileError.tooManyCollisions
         } catch {
             return .init(files: .init(urls: locations), title: nil,
-                         errorMessage: "保存或改名未完成：\(error.localizedDescription)")
+                         errorMessage: L10n.text("保存或改名未完成：\(error.localizedDescription)"))
         }
     }
 

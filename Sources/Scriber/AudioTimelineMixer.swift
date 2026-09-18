@@ -8,14 +8,14 @@ enum AudioMixError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidConfiguration: "无法创建混音配置。"
-        case .invalidSamples: "收到无法处理的声音数据。"
-        case .invalidTimeline: "音频时间信息无效。"
-        case .lateInput: "某一路声音到达过晚，无法继续同步。"
-        case .overlappingInput: "某一路声音的时间发生重叠。"
-        case .bufferOverflow: "声音同步间隔过大，无法继续录制。"
-        case .invalidSourceChange: "无法在指定时间更改声音来源。"
-        case .finished: "混音已结束。"
+        case .invalidConfiguration: L10n.text("无法创建混音配置。")
+        case .invalidSamples: L10n.text("收到无法处理的声音数据。")
+        case .invalidTimeline: L10n.text("音频时间信息无效。")
+        case .lateInput: L10n.text("某一路声音到达过晚，无法继续同步。")
+        case .overlappingInput: L10n.text("某一路声音的时间发生重叠。")
+        case .bufferOverflow: L10n.text("声音同步间隔过大，无法继续录制。")
+        case .invalidSourceChange: L10n.text("无法在指定时间更改声音来源。")
+        case .finished: L10n.text("混音已结束。")
         }
     }
 }

@@ -13,12 +13,12 @@ enum VideoWriteError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidFormat: "视频或音轨格式与录制配置不一致。"
-        case .invalidTimestamp: "音视频时间戳无效或发生倒退。"
-        case .backpressure: "视频写入速度不足，录制已中止以避免静默丢帧。"
-        case .missingTrack: "录屏没有收到完整的画面和声音数据。"
-        case .finished: "视频写入已结束。"
-        case .encoding(let message): "视频编码失败：\(message)"
+        case .invalidFormat: L10n.text("视频或音轨格式与录制配置不一致。")
+        case .invalidTimestamp: L10n.text("音视频时间戳无效或发生倒退。")
+        case .backpressure: L10n.text("视频写入速度不足，录制已中止以避免静默丢帧。")
+        case .missingTrack: L10n.text("录屏没有收到完整的画面和声音数据。")
+        case .finished: L10n.text("视频写入已结束。")
+        case .encoding(let message): L10n.text("视频编码失败：\(message)")
         }
     }
 }
@@ -77,7 +77,7 @@ final class VideoSampleWriter: @unchecked Sendable {
             guard writer.canAdd(input) else { throw VideoWriteError.invalidFormat }
             writer.add(input)
         }
-        guard writer.startWriting() else { throw VideoWriteError.encoding(writer.error?.localizedDescription ?? "无法打开输出文件") }
+        guard writer.startWriting() else { throw VideoWriteError.encoding(writer.error?.localizedDescription ?? L10n.text("无法打开输出文件")) }
         writer.startSession(atSourceTime: .zero)
     }
 
@@ -155,7 +155,7 @@ final class VideoSampleWriter: @unchecked Sendable {
                     return
                 }
                 guard self.writer.status == .writing else {
-                    continuation.resume(throwing: self.failure ?? .encoding(self.writer.error?.localizedDescription ?? "写入已停止"))
+                    continuation.resume(throwing: self.failure ?? .encoding(self.writer.error?.localizedDescription ?? L10n.text("写入已停止")))
                     return
                 }
                 if let endTime {
@@ -173,7 +173,7 @@ final class VideoSampleWriter: @unchecked Sendable {
                     self.queue.async {
                         if let failure = self.failure { continuation.resume(throwing: failure) }
                         else if self.writer.status == .completed { continuation.resume(returning: self.summary) }
-                        else { continuation.resume(throwing: VideoWriteError.encoding(self.writer.error?.localizedDescription ?? "输出文件没有正常完成")) }
+                        else { continuation.resume(throwing: VideoWriteError.encoding(self.writer.error?.localizedDescription ?? L10n.text("输出文件没有正常完成"))) }
                     }
                 }
             }
@@ -203,13 +203,13 @@ final class VideoSampleWriter: @unchecked Sendable {
     private func append(_ sample: CMSampleBuffer, to input: AVAssetWriterInput) throws {
         guard input.isReadyForMoreMediaData else { throw encoderFailure ?? .backpressure }
         guard input.append(sample) else {
-            throw VideoWriteError.encoding(writer.error?.localizedDescription ?? "无法写入数据")
+            throw VideoWriteError.encoding(writer.error?.localizedDescription ?? L10n.text("无法写入数据"))
         }
     }
 
     private func valid(_ time: CMTime) -> Bool { time.isNumeric && time.seconds.isFinite }
 
     private var encoderFailure: VideoWriteError? {
-        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? "视频写入已失败") : nil
+        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? L10n.text("视频写入已失败")) : nil
     }
 }

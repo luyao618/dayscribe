@@ -29,11 +29,11 @@ final class RecordingRecoveryModel: ObservableObject {
 
     var message: String? {
         if let errorMessage { return errorMessage }
-        if isPaused && wantsRun { return "录制期间已暂停恢复检查。" }
-        if isRunning { return currentTitle.isEmpty ? "正在检查未完成的录制…" : "正在恢复：\(currentTitle)" }
-        if issueCount > 0 { return "已恢复 \(recoveredCount) 条录制，另有 \(issueCount) 条需要查看。" }
-        if busyCount > 0 { return "有 \(busyCount) 条录制仍在使用，稍后可重试。" }
-        return recoveredCount > 0 ? "已恢复 \(recoveredCount) 条中断的录制。" : nil
+        if isPaused && wantsRun { return L10n.text("录制期间已暂停恢复检查。") }
+        if isRunning { return currentTitle.isEmpty ? L10n.text("正在检查未完成的录制…") : L10n.text("正在恢复：\(currentTitle)") }
+        if issueCount > 0 { return L10n.text("已恢复 \(recoveredCount) 条录制，另有 \(issueCount) 条需要查看。") }
+        if busyCount > 0 { return L10n.text("有 \(busyCount) 条录制仍在使用，稍后可重试。") }
+        return recoveredCount > 0 ? L10n.text("已恢复 \(recoveredCount) 条中断的录制。") : nil
     }
 
     func start(discovering folders: [URL]) {
@@ -58,7 +58,7 @@ final class RecordingRecoveryModel: ObservableObject {
     }
 
     func deferForAnotherInstance() {
-        errorMessage = "另一个 Scriber 正在运行，请关闭后重试恢复。"
+        errorMessage = L10n.text("另一个 Scriber 正在运行，请关闭后重试恢复。")
         onUpdate?()
     }
 
@@ -111,7 +111,7 @@ final class RecordingRecoveryModel: ObservableObject {
                     catch {
                         if Task.isCancelled { throw CancellationError() }
                         self.issueCount += 1
-                        self.errorMessage = "有录制未能恢复：\(error.localizedDescription)"
+                        self.errorMessage = L10n.text("有录制未能恢复：\(error.localizedDescription)")
                     }
                     self.onUpdate?()
                 }
@@ -120,7 +120,7 @@ final class RecordingRecoveryModel: ObservableObject {
             } catch is CancellationError {
                 // The transaction retains its durable state for the next run.
             } catch {
-                if !Task.isCancelled { self.errorMessage = "无法检查未完成录制：\(error.localizedDescription)" }
+                if !Task.isCancelled { self.errorMessage = L10n.text("无法检查未完成录制：\(error.localizedDescription)") }
             }
         }
     }

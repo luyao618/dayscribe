@@ -38,7 +38,7 @@ Screen recording supports a **selected region, a single window or an entire disp
 
 Scriber requires an **Apple Silicon Mac running macOS 26+**. The current v0.1 is intended for personal use and is built from source with a local signature. Building also requires **Xcode 26**.
 
-The app currently uses a Chinese interface.
+The interface supports English and Simplified Chinese. At launch, Scriber uses English when the primary system language is English; otherwise, it defaults to Simplified Chinese. You can also choose a language for Scriber under macOS **Language & Region → Applications**. Restart the app after changing the language. Existing filenames and save locations stay unchanged.
 
 ```sh
 git clone https://github.com/luyao618/dayscribe.git scriber

@@ -38,7 +38,7 @@ Scriber 专注录制与文件管理。总结、转录和分析由你选择的其
 
 运行需要 **Apple Silicon Mac 与 macOS 26+**。当前 v0.1 面向个人使用，通过源码构建并本地签名；构建另需 **Xcode 26**。
 
-应用当前为中文界面。
+界面支持简体中文和英文：启动时跟随系统首选语言，英文系统显示英文，其余默认中文。也可以在 macOS「语言与地区 → 应用程序」中单独设置 Scriber 的语言，修改后重启应用生效。已有文件名和保存目录保持不变。
 
 ```sh
 git clone https://github.com/luyao618/dayscribe.git scriber

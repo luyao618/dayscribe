@@ -31,9 +31,9 @@ enum StorageError: LocalizedError, Equatable {
     case lowSpace, unavailable, changedVolume
     var errorDescription: String? {
         switch self {
-        case .lowSpace: "保存磁盘剩余空间不足。请释放空间或更改保存位置后重试。"
-        case .unavailable: "无法读取保存磁盘。请检查保存位置是否仍可用。"
-        case .changedVolume: "保存位置所在的磁盘已变化。请重新选择保存位置。"
+        case .lowSpace: L10n.text("保存磁盘剩余空间不足。请释放空间或更改保存位置后重试。")
+        case .unavailable: L10n.text("无法读取保存磁盘。请检查保存位置是否仍可用。")
+        case .changedVolume: L10n.text("保存位置所在的磁盘已变化。请重新选择保存位置。")
         }
     }
 }

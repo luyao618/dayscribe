@@ -220,7 +220,7 @@ enum SessionRecovery {
         if let previous = basis.recovery { originalError = previous.originalCaptureError }
         else { originalError = basis.captureError ?? basis.error }
         let note = journal.items.values.contains(where: { !$0.reusesOriginal && $0.sealed != nil })
-            ? "已恢复中断录制，末尾未完整写入的内容可能缺失。" : "已处理上次未完成的保存。"
+            ? L10n.text("已恢复中断录制，末尾未完整写入的内容可能缺失。") : L10n.text("已处理上次未完成的保存。")
         let message = ([originalError, note, publicationError].compactMap { $0 } + issues.keys.sorted().compactMap { issues[$0] }).joined(separator: "\n")
         var result = RecordingSessionFiles.Manifest(id: basis.id, startedAt: basis.startedAt, title: title,
             paths: Dictionary(uniqueKeysWithValues: paths.map { ($0.key.rawValue, $0.value.path) }),

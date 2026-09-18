@@ -43,7 +43,7 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         switch status {
         case .complete:
             lastCallbackReceipt = CMClockGetTime(CMClockGetHostTimeClock()).seconds
-            guard let image = sampleBuffer.imageBuffer else { metrics.error = "录屏没有收到有效画面。"; return }
+            guard let image = sampleBuffer.imageBuffer else { metrics.error = L10n.text("录屏没有收到有效画面。"); return }
             let time = sampleBuffer.presentationTimeStamp
             do {
                 try writer.appendVideo(image, at: time - epoch)
@@ -61,7 +61,7 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
             guard !stopping, let image = lastImage, let lastTime else { return }
             let relative = (time - epoch).seconds
             guard relative.isFinite, relative >= 0, relative < Double(Int64.max) else {
-                metrics.error = "静止画面没有有效的时间信息。"; return
+                metrics.error = L10n.text("静止画面没有有效的时间信息。"); return
             }
             // SCK confirms the scene is unchanged. Repeat the captured surface
             // at most once per second so both movie tracks can checkpoint.
@@ -74,9 +74,9 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
                 } catch { metrics.error = error.localizedDescription }
             }
         case .blank, .suspended, .stopped:
-            if !stopping { metrics.error = "屏幕采集已中断，正在保存已有内容。" }
+            if !stopping { metrics.error = L10n.text("屏幕采集已中断，正在保存已有内容。") }
         case .started: break
-        @unknown default: metrics.error = "无法识别屏幕采集状态。"
+        @unknown default: metrics.error = L10n.text("无法识别屏幕采集状态。")
         }
     }
 
@@ -91,11 +91,11 @@ final class ScreenVideoOutput: NSObject, SCStreamOutput, @unchecked Sendable {
             writer.queue.async {
                 if !self.closed, !self.stopping, self.metrics.receivedFrames == 0,
                    (CMClockGetTime(CMClockGetHostTimeClock()) - self.epoch).seconds > 2 {
-                    self.metrics.error = self.metrics.error ?? "屏幕采集未返回画面，正在停止。"
+                    self.metrics.error = self.metrics.error ?? L10n.text("屏幕采集未返回画面，正在停止。")
                 }
                 if !self.closed, !self.stopping, let last = self.lastCallbackReceipt,
                    CMClockGetTime(CMClockGetHostTimeClock()).seconds - last > 2 {
-                    self.metrics.error = self.metrics.error ?? "屏幕采集停止返回状态，正在保存已有内容。"
+                    self.metrics.error = self.metrics.error ?? L10n.text("屏幕采集停止返回状态，正在保存已有内容。")
                 }
                 continuation.resume(returning: self.metrics)
             }
