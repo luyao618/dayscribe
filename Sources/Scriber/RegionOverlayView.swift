@@ -8,8 +8,8 @@ final class RegionOverlayView: NSView {
     private var anchor: CGPoint?
     private var endpoint: CGPoint?
     private let scale: CGFloat
-    private let startButton = NSButton(title: "开始录屏", target: nil, action: nil)
-    private let cancelButton = NSButton(title: "取消", target: nil, action: nil)
+    private let startButton = NSButton(title: L10n.text("开始录屏"), target: nil, action: nil)
+    private let cancelButton = NSButton(title: L10n.text("取消"), target: nil, action: nil)
 
     init(frame: CGRect, scale: CGFloat) {
         self.scale = scale
@@ -29,7 +29,7 @@ final class RegionOverlayView: NSView {
             button.controlSize = .large
             addSubview(button)
         }
-        setAccessibilityLabel("框选录屏区域")
+        setAccessibilityLabel(L10n.text("框选录屏区域"))
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -40,8 +40,11 @@ final class RegionOverlayView: NSView {
 
     override func layout() {
         super.layout()
-        cancelButton.frame = CGRect(x: bounds.midX - 126, y: 35, width: 110, height: 38)
-        startButton.frame = CGRect(x: bounds.midX + 4, y: 35, width: 122, height: 38)
+        let cancelWidth = max(110, cancelButton.intrinsicContentSize.width + 8)
+        let startWidth = max(122, startButton.intrinsicContentSize.width + 8)
+        let left = bounds.midX - (cancelWidth + 20 + startWidth) / 2
+        cancelButton.frame = CGRect(x: left, y: 35, width: cancelWidth, height: 38)
+        startButton.frame = CGRect(x: left + cancelWidth + 20, y: 35, width: startWidth, height: 38)
     }
 
     override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
@@ -100,7 +103,7 @@ final class RegionOverlayView: NSView {
             drawPill(text, center: CGPoint(x: min(max(selection.midX, 70), bounds.width - 70),
                                            y: min(selection.maxY + 22, bounds.height - 75)), fontSize: 12)
         }
-        drawPill("拖动鼠标框选 · 回车开始录屏 · Esc 取消", center: CGPoint(x: bounds.midX, y: bounds.height - 42), fontSize: 14)
+        drawPill(L10n.text("拖动鼠标框选 · 回车开始录屏 · Esc 取消"), center: CGPoint(x: bounds.midX, y: bounds.height - 42), fontSize: 14)
     }
 
     private func drawPill(_ text: String, center: CGPoint, fontSize: CGFloat) {

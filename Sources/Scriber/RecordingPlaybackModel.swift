@@ -196,9 +196,9 @@ private enum PlaybackError: LocalizedError {
     case unavailable, invalidMedia, seekFailed
     var errorDescription: String? {
         switch self {
-        case .unavailable: "文件尚未完成写入、已移动或无法访问，请刷新记录后重试。"
-        case .invalidMedia: "无法播放这个文件，文件可能尚未完成或已损坏。"
-        case .seekFailed: "无法定位到该播放位置，请重试。"
+        case .unavailable: L10n.text("文件尚未完成写入、已移动或无法访问，请刷新记录后重试。")
+        case .invalidMedia: L10n.text("无法播放这个文件，文件可能尚未完成或已损坏。")
+        case .seekFailed: L10n.text("无法定位到该播放位置，请重试。")
         }
     }
 }

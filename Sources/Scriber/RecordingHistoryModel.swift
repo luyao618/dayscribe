@@ -27,13 +27,13 @@ final class RecordingHistoryModel: ObservableObject {
             do {
                 if !folders.isEmpty {
                     let issues = try await store.discover(in: folders)
-                    discoveryMessage = issues.isEmpty ? nil : "有 \(issues.count) 项旧记录未能读取，可检查文件夹后重试。"
+                    discoveryMessage = issues.isEmpty ? nil : L10n.text("有 \(issues.count) 项旧记录未能读取，可检查文件夹后重试。")
                 }
                 let loaded = try await store.load()
                 entries = loaded
                 errorMessage = nil
             } catch {
-                errorMessage = "无法读取历史记录：\(error.localizedDescription)"
+                errorMessage = L10n.text("无法读取历史记录：\(error.localizedDescription)")
                 // Keep the last good snapshot; a read error is not an empty history.
             }
         } while reloadRequested
@@ -45,17 +45,17 @@ final class RecordingHistoryModel: ObservableObject {
             let latest = try await store.load()
             entries = latest
             guard let entry = latest.first(where: { $0.id == id }) else {
-                errorMessage = "这条录制记录已不可用。"
+                errorMessage = L10n.text("这条录制记录已不可用。")
                 return []
             }
             let files = RecordingFileKind.allCases.compactMap { kind -> URL? in
                 guard entry.fileStates[kind] == .available || entry.fileStates[kind] == .unfinished else { return nil }
                 return entry.urls[kind]
             }
-            errorMessage = files.isEmpty ? "文件已移动、删除或无法访问，请检查保存目录。" : nil
+            errorMessage = files.isEmpty ? L10n.text("文件已移动、删除或无法访问，请检查保存目录。") : nil
             return files
         } catch {
-            errorMessage = "无法定位文件：\(error.localizedDescription)"
+            errorMessage = L10n.text("无法定位文件：\(error.localizedDescription)")
             return []
         }
     }

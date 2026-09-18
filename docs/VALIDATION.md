@@ -620,3 +620,15 @@ These items remain unverified and no longer block Goal completion under the revi
 ![Actual English recording panel](screenshots/native-localized-english.png)
 ![Actual English recording with live system audio](screenshots/native-localized-recording-english.png)
 ![Actual Chinese recording panel](screenshots/native-localized-chinese.png)
+
+## Localized history, detail, settings and region controls — 2026-09-18
+
+- Added translations for history/search/status, playback and detail actions, destination settings, shortcuts, the region overlay and the developer capture panel. User titles, stored warning text and device/file data are displayed as recorded rather than passed through a translation lookup.
+- Region action buttons use their native intrinsic title sizes while retaining the previous Chinese minimum widths and spacing. A native AppKit component check covers English and Chinese button widths, bounds and separation; the existing synthetic selection/Return/Escape logic test also passes. These component checks are not desktop gesture evidence.
+- Release suite passed 108 test functions; the additional bilingual button-layout case passed with the region suite. Signed Release build and catalog placeholder checks passed. Actual English GUI checks reached destination settings, shortcut settings/save, history, audio detail and play/pause (`artifacts/localization/pages-native-yqjt5edm`). Screenshots below are actual native views, with folder paths blurred and transparent capture margins removed.
+- Remaining live GUI follow-ups (rename confirmation, Chinese subpages and region cancellation) are pending a stable desktop interaction window. Three local harness attempts retain their results: an incorrect shortcut AX label was corrected; guarded typing then stopped when foreground/input conditions changed; a later popover dismissal interrupted page navigation. These are not marked as full-flow passes. User availability was requested once while independent localization work continues.
+
+![English save locations](screenshots/native-localized-destinations.png)
+![English shortcut settings](screenshots/native-localized-shortcut.png)
+![English recording history](screenshots/native-localized-history.png)
+![English recording detail](screenshots/native-localized-detail.png)

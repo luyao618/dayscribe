@@ -18,17 +18,17 @@ struct RecordingHistoryPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Button(action: onBack) { Image(systemName: "chevron.left") }
-                    .buttonStyle(PanelIconButtonStyle()).accessibilityLabel("返回录制面板")
-                Text("录制历史").font(.system(size: 18, weight: .semibold))
+                    .buttonStyle(PanelIconButtonStyle()).accessibilityLabel(L10n.text("返回录制面板"))
+                Text(L10n.text("录制历史")).font(.system(size: 18, weight: .semibold))
                 Spacer()
-                Text("\(history.entries.count) 条").font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
+                Text(L10n.text("\(history.entries.count) 条")).font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
                 Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(PanelIconButtonStyle()).disabled(history.isLoading).accessibilityLabel("刷新历史")
+                    .buttonStyle(PanelIconButtonStyle()).disabled(history.isLoading).accessibilityLabel(L10n.text("刷新历史"))
             }
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PanelPalette.slate)
-                TextField("搜索录制名称", text: $query)
-                    .textFieldStyle(.plain).autocorrectionDisabled().accessibilityLabel("搜索录制名称")
+                TextField(L10n.text("搜索录制名称"), text: $query)
+                    .textFieldStyle(.plain).autocorrectionDisabled().accessibilityLabel(L10n.text("搜索录制名称"))
             }
             .font(.system(size: 12)).padding(11)
             .background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 9))
@@ -37,7 +37,7 @@ struct RecordingHistoryPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if history.isLoading {
-                Text("正在读取…").font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
+                Text(L10n.text("正在读取…")).font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
             }
             ScrollView {
                 LazyVStack(spacing: 5) {
@@ -46,7 +46,7 @@ struct RecordingHistoryPanel: View {
                         Rectangle().fill(PanelPalette.line).frame(height: 1)
                     }
                     if filtered.isEmpty, !history.isLoading, history.errorMessage == nil {
-                        Text(history.entries.isEmpty ? "还没有录制，完成后会显示在这里。" : "没有找到匹配的录制")
+                        Text(history.entries.isEmpty ? L10n.text("还没有录制，完成后会显示在这里。") : L10n.text("没有找到匹配的录制"))
                             .font(.system(size: 12)).foregroundStyle(PanelPalette.slate)
                             .padding(.vertical, 35)
                     }
@@ -70,34 +70,34 @@ struct RecordingHistoryRow: View {
     private var status: String {
         if live {
             return switch recorder.state {
-            case .authorizing: "准备录制"
-            case .finishing: "正在保存"
-            default: "录制中"
+            case .authorizing: L10n.text("准备录制")
+            case .finishing: L10n.text("正在保存")
+            default: L10n.text("录制中")
             }
         }
-        if entry.manifest == nil { return "记录无法读取" }
+        if entry.manifest == nil { return L10n.text("记录无法读取") }
         if entry.manifest?.recovery?.completedAt != nil, entry.manifest?.published.isEmpty == false {
-            if entry.manifest?.published.count != entry.manifest?.paths.count { return "部分已恢复" }
+            if entry.manifest?.published.count != entry.manifest?.paths.count { return L10n.text("部分已恢复") }
             if !entry.fileStates.values.contains(.missing) && !entry.fileStates.values.contains(.unavailable) {
-                return video ? "已恢复 · MP4 + M4A" : "已恢复 · M4A 音频"
+                return video ? L10n.text("已恢复 · MP4 + M4A") : L10n.text("已恢复 · M4A 音频")
             }
         }
-        if entry.manifest?.published.count != entry.manifest?.paths.count { return "未完整保存" }
-        if entry.fileStates.values.contains(.missing) || entry.fileStates.values.contains(.unavailable) { return "文件缺失或无法访问" }
-        if entry.issue != nil { return "已保存 · 请查看提示" }
-        return video ? "MP4 + M4A" : "M4A 音频"
+        if entry.manifest?.published.count != entry.manifest?.paths.count { return L10n.text("未完整保存") }
+        if entry.fileStates.values.contains(.missing) || entry.fileStates.values.contains(.unavailable) { return L10n.text("文件缺失或无法访问") }
+        if entry.issue != nil { return L10n.text("已保存 · 请查看提示") }
+        return video ? "MP4 + M4A" : L10n.text("M4A 音频")
     }
 
     var body: some View {
         HStack(spacing: 10) {
             Button { onOpen?() } label: { content }
                 .buttonStyle(.plain).disabled(onOpen == nil)
-                .accessibilityLabel("查看录制：\(title)")
-                .accessibilityValue("\(status)，\(live ? recorder.elapsedText : RecordingHistoryModel.durationText(entry.duration))")
+                .accessibilityLabel(L10n.text("查看录制：\(title)"))
+                .accessibilityValue(L10n.text("\(status)，\(live ? recorder.elapsedText : RecordingHistoryModel.durationText(entry.duration))"))
             Button(action: onReveal) { Image(systemName: "folder") }
                 .buttonStyle(PanelIconButtonStyle()).disabled(!canReveal)
-                .accessibilityLabel("定位录制：\(title)")
-                .help("在 Finder 中显示这次录制的文件")
+                .accessibilityLabel(L10n.text("定位录制：\(title)"))
+                .help(L10n.text("在 Finder 中显示这次录制的文件"))
         }
         .frame(minHeight: 53)
         .help(entry.issue ?? status)

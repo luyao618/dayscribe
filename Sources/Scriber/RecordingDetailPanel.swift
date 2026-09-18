@@ -26,19 +26,19 @@ struct RecordingDetailPanel: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Button { playback.close(); onBack() } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(PanelIconButtonStyle()).accessibilityLabel("返回录制历史")
-                Text("录制详情").font(.system(size: 18, weight: .semibold))
+                    .buttonStyle(PanelIconButtonStyle()).accessibilityLabel(L10n.text("返回录制历史"))
+                Text(L10n.text("录制详情")).font(.system(size: 18, weight: .semibold))
                 Spacer()
             }
             if editingName {
                 HStack(spacing: 8) {
-                    TextField("录制名称", text: $nameDraft).textFieldStyle(.plain).autocorrectionDisabled()
-                        .focused($nameFocused).accessibilityLabel("历史录制名称")
+                    TextField(L10n.text("录制名称"), text: $nameDraft).textFieldStyle(.plain).autocorrectionDisabled()
+                        .focused($nameFocused).accessibilityLabel(L10n.text("历史录制名称"))
                         .onSubmit { Task { await saveName() } }
                         .onExitCommand { editingName = false; nameError = nil }
                         .onAppear { DispatchQueue.main.async { nameFocused = true } }
                     Button { Task { await saveName() } } label: { Image(systemName: "checkmark") }
-                        .buttonStyle(.plain).accessibilityLabel("确认历史名称")
+                        .buttonStyle(.plain).accessibilityLabel(L10n.text("确认历史名称"))
                 }
                 .font(.system(size: 17, weight: .semibold)).padding(8)
                 .background(.white, in: RoundedRectangle(cornerRadius: 7))
@@ -51,20 +51,20 @@ struct RecordingDetailPanel: View {
                     editingName = true
                 } label: {
                     HStack(spacing: 8) {
-                        Text(playback.entry?.title ?? (playback.isLoading ? "正在读取录制…" : "录制不可用"))
+                        Text(playback.entry?.title ?? (playback.isLoading ? L10n.text("正在读取录制…") : L10n.text("录制不可用")))
                             .font(.system(size: 17, weight: .semibold)).lineLimit(2)
                         Spacer(minLength: 0)
                         Image(systemName: "pencil").font(.system(size: 12)).foregroundStyle(PanelPalette.slate)
                     }
                 }
                 .buttonStyle(.plain).disabled(!canRename)
-                .accessibilityLabel("修改历史名称").accessibilityValue(playback.entry?.title ?? "")
+                .accessibilityLabel(L10n.text("修改历史名称")).accessibilityValue(playback.entry?.title ?? "")
             }
             if let nameError {
                 Text(nameError).font(.system(size: 11)).foregroundStyle(PanelPalette.record)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if savingName { Text("正在改名…").font(.system(size: 11)).foregroundStyle(PanelPalette.slate) }
+            if savingName { Text(L10n.text("正在改名…")).font(.system(size: 11)).foregroundStyle(PanelPalette.slate) }
             if let entry = playback.entry {
                 Text(RecordingHistoryModel.dateText(entry.reference.startedAt))
                     .font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
@@ -75,7 +75,7 @@ struct RecordingDetailPanel: View {
                 } else {
                     VStack(spacing: 10) {
                         Image(systemName: "waveform").font(.system(size: 32)).foregroundStyle(PanelPalette.jade)
-                        Text(playback.selectedKind == nil ? "暂无可播放文件" : "音频预览")
+                        Text(playback.selectedKind == nil ? L10n.text("暂无可播放文件") : L10n.text("音频预览"))
                             .font(.system(size: 12)).foregroundStyle(PanelPalette.slate)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity).background(PanelPalette.jade.opacity(0.05))
@@ -88,23 +88,23 @@ struct RecordingDetailPanel: View {
                 }
                 .buttonStyle(PanelIconButtonStyle())
                 .disabled(!playback.canPlay || playback.isSeeking)
-                .accessibilityLabel(playback.isPlaying ? "暂停播放" : "播放录制")
+                .accessibilityLabel(playback.isPlaying ? L10n.text("暂停播放") : L10n.text("播放录制"))
                 Text(RecordingHistoryModel.durationText(playback.position))
                 Slider(value: Binding(get: { playback.position }, set: { playback.seek(to: $0) }),
                        in: 0...max(playback.duration, 0.001))
                     .tint(PanelPalette.iris).disabled(!playback.canPlay)
-                    .accessibilityLabel("播放进度")
+                    .accessibilityLabel(L10n.text("播放进度"))
                 Text(RecordingHistoryModel.durationText(playback.duration > 0 ? playback.duration : nil))
             }
             .font(.system(size: 9, design: .monospaced)).foregroundStyle(PanelPalette.slate)
             if playback.isLoading {
-                Text("正在加载…").font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
+                Text(L10n.text("正在加载…")).font(.system(size: 11)).foregroundStyle(PanelPalette.slate)
             }
             if let error = playback.errorMessage ?? playback.entry?.issue {
                 Text(error).font(.system(size: 11)).foregroundStyle(PanelPalette.record)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("文件").font(.system(size: 11, weight: .semibold)).foregroundStyle(PanelPalette.slate)
+            Text(L10n.text("文件")).font(.system(size: 11, weight: .semibold)).foregroundStyle(PanelPalette.slate)
             if let entry = playback.entry {
                 ForEach([RecordingFileKind.video, .audio], id: \.self) { kind in
                     if let url = entry.urls[kind] {
@@ -113,7 +113,7 @@ struct RecordingDetailPanel: View {
                                 HStack(spacing: 9) {
                                     Image(systemName: kind == .video ? "video" : "waveform")
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(kind == .video ? "MP4 视频" : "M4A 音频").fontWeight(.medium)
+                                        Text(kind == .video ? L10n.text("MP4 视频") : L10n.text("M4A 音频")).fontWeight(.medium)
                                         Text(url.lastPathComponent).font(.system(size: 10))
                                             .foregroundStyle(PanelPalette.slate).lineLimit(1).truncationMode(.middle)
                                         if entry.fileStates[kind] != .available {
@@ -127,9 +127,9 @@ struct RecordingDetailPanel: View {
                                 .foregroundStyle(PanelPalette.ink).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain).disabled(entry.fileStates[kind] != .available || playback.isLoading)
-                            .accessibilityLabel(kind == .video ? "选择视频预览" : "选择音频预览")
+                            .accessibilityLabel(kind == .video ? L10n.text("选择视频预览") : L10n.text("选择音频预览"))
                             Button { onReveal(entry.id, kind) } label: { Image(systemName: "folder") }
-                                .buttonStyle(PanelIconButtonStyle()).accessibilityLabel(kind == .video ? "定位视频文件" : "定位音频文件")
+                                .buttonStyle(PanelIconButtonStyle()).accessibilityLabel(kind == .video ? L10n.text("定位视频文件") : L10n.text("定位音频文件"))
                                 .disabled(entry.fileStates[kind] != .available)
                         }
                         .font(.system(size: 12)).padding(.vertical, 5)
@@ -158,9 +158,9 @@ struct RecordingDetailPanel: View {
 
     private func fileStatus(_ state: RecordingHistoryEntry.FileState?) -> String {
         switch state {
-        case .missing: "文件已移动或删除"
-        case .unfinished: "尚未完成写入"
-        default: "文件无法访问"
+        case .missing: L10n.text("文件已移动或删除")
+        case .unfinished: L10n.text("尚未完成写入")
+        default: L10n.text("文件无法访问")
         }
     }
 }
