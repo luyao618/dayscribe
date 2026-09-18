@@ -1,0 +1,19 @@
+{
+  "durationSeconds": 60,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "decodedVideoFrames": 1800,
+  "video": "H.264 yuv420p",
+  "audio": "AAC 48kHz stereo",
+  "meanVolumeDBFS": -24.3,
+  "peakVolumeDBFS": -12.0,
+  "fullDecode": "passed",
+  "faststart": true,
+  "nativeAssetsChecked": 9,
+  "nativeClipsHaveNoAudio": true,
+  "bytes": 3772892,
+  "sha256": "470a19c462c12667bce1c1e0d003709cab89e4781bce29641435c87ba8929de6"
+}
