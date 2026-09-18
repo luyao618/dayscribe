@@ -1,0 +1,131 @@
+{
+  "engine": "kokoro-onnx 0.6.1",
+  "voice": "af_heart",
+  "locale": "en-us",
+  "disclosure": "AI-generated narration using a standard pretrained voice; no voice cloning.",
+  "modelLicense": "Apache-2.0",
+  "sampleRate": 24000,
+  "channels": 1,
+  "durationSeconds": 60,
+  "file": "narration-en.flac",
+  "sha256": "f659870e3587b1c5af76f527ec92f5316313c8c4c9ea8f5ccc76f1d7332ac069",
+  "segments": [
+    {
+      "id": "01",
+      "start": 0.45,
+      "speechEnd": 4.418,
+      "subtitleEnd": 5.75,
+      "speechSeconds": 3.968,
+      "speed": 0.95,
+      "text": "Meet Scriber. Keep what matters from meetings, calls, and videos."
+    },
+    {
+      "id": "02",
+      "start": 6.25,
+      "speechEnd": 10.303333333333335,
+      "subtitleEnd": 11.75,
+      "speechSeconds": 4.053333333333334,
+      "speed": 0.95,
+      "text": "Click the menu bar icon, or press Option R, to open the panel."
+    },
+    {
+      "id": "03",
+      "start": 12.25,
+      "speechEnd": 16.068666666666665,
+      "subtitleEnd": 17.1,
+      "speechSeconds": 3.8186666666666667,
+      "speed": 0.95,
+      "text": "Record system audio and your microphone, with separate controls."
+    },
+    {
+      "id": "04",
+      "start": 17.4,
+      "speechEnd": 20.173333333333332,
+      "subtitleEnd": 21.75,
+      "speechSeconds": 2.7733333333333334,
+      "speed": 0.95,
+      "text": "Start recording, then get back to what you are doing."
+    },
+    {
+      "id": "05",
+      "start": 22.25,
+      "speechEnd": 26.282,
+      "subtitleEnd": 28.65,
+      "speechSeconds": 4.032,
+      "speed": 0.95,
+      "text": "See the timer and audio levels. Rename your file as you record."
+    },
+    {
+      "id": "06",
+      "start": 29.2,
+      "speechEnd": 31.717333333333332,
+      "subtitleEnd": 32.65,
+      "speechSeconds": 2.517333333333333,
+      "speed": 0.95,
+      "text": "Need the picture too? Choose screen recording."
+    },
+    {
+      "id": "07",
+      "start": 32.95,
+      "speechEnd": 35.74466666666667,
+      "subtitleEnd": 36.95,
+      "speechSeconds": 2.7946666666666666,
+      "speed": 0.95,
+      "text": "Select a region, a window, or your whole screen."
+    },
+    {
+      "id": "08",
+      "start": 37.25,
+      "speechEnd": 38.55133333333333,
+      "subtitleEnd": 39.7,
+      "speechSeconds": 1.3013333333333332,
+      "speed": 0.95,
+      "text": "Then stop and save."
+    },
+    {
+      "id": "09",
+      "start": 40.15,
+      "speechEnd": 43.20066666666666,
+      "subtitleEnd": 44.55,
+      "speechSeconds": 3.050666666666667,
+      "speed": 0.95,
+      "text": "Get a video with sound, plus a separate audio file."
+    },
+    {
+      "id": "10",
+      "start": 44.85,
+      "speechEnd": 47.303333333333335,
+      "subtitleEnd": 47.7,
+      "speechSeconds": 2.453333333333333,
+      "speed": 0.95,
+      "text": "Audio only? One M four A file."
+    },
+    {
+      "id": "11",
+      "start": 48.15,
+      "speechEnd": 49.686,
+      "subtitleEnd": 51.1,
+      "speechSeconds": 1.536,
+      "speed": 0.95,
+      "text": "Choose where your files go."
+    },
+    {
+      "id": "12",
+      "start": 51.35,
+      "speechEnd": 54.358000000000004,
+      "subtitleEnd": 54.8,
+      "speechSeconds": 3.008,
+      "speed": 0.95,
+      "text": "Play, rename, or find recordings in your history."
+    },
+    {
+      "id": "13",
+      "start": 55.3,
+      "speechEnd": 57.476,
+      "subtitleEnd": 59.65,
+      "speechSeconds": 2.176,
+      "speed": 0.95,
+      "text": "Scriber. Record it. Put it to work."
+    }
+  ]
+}
