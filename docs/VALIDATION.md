@@ -599,3 +599,11 @@ The user explicitly moved the following to later personal acceptance and will re
 3. Actual lock/unlock, sleep/wake and lid transitions.
 
 These items remain unverified and no longer block Goal completion under the revised scope. The default bundle is delivered; eight-hour audio file checks and two-hour video file checks have reviewed evidence with their original warning/validation failures preserved. Neither those results nor short control checks certify uninterrupted microphone coverage or a pass for the deferred hardware/power tests. No new capture, hardware test or evidence rewrite was performed for this scope change.
+
+## System-language foundation — 2026-09-18
+
+- Added a launch-time language policy: English when the primary preferred language is `en` (including regional/underscore variants), Simplified Chinese otherwise. It reads standard preferred languages, including macOS per-app overrides; it does not change system preferences.
+- Added explicit language-bundle lookup and numbered interpolation that preserves user filenames containing braces, percent signs and Unicode. Missing keys fall back to the original Chinese template. Fifteen localization cases cover regional tags, unsupported primary languages, resource lookup, missing keys, reordered/repeated placeholders and literal user data.
+- Release tests passed **106 test functions**; signed Release packaging and plist/string syntax checks passed. UI resources ship inside the app's Resources directory; localized microphone usage descriptions are packaged for macOS.
+- A copied app launched in six fresh processes: current system (`en-CN`), English, Simplified Chinese, Traditional Chinese, unsupported French and French-before-English. The selected UI language/text matched the policy in every case. The copied app loaded its own bundled resources, and English/Chinese microphone descriptions resolved correctly. Evidence: `artifacts/localization/foundation-package-check.json`, `foundation-tests.log`, `foundation-build.log`.
+- This increment establishes the language/resource infrastructure. Visible panel, subpage and error text migration follows in separate small PRs; it is not a claim that every screen is translated yet.
