@@ -1,83 +1,68 @@
-# Scriber（暂定名）
+<p align="center"><img src="docs/media/scriber-mark.svg" width="88" alt="Scriber 波形标识" /></p>
+<h1 align="center">Scriber</h1>
+<p align="center"><strong>录下来，接着用。</strong><br />Mac 菜单栏里的录音与录屏工具，让重要内容变成本地文件。</p>
+<p align="center"><a href="docs/USAGE.md">使用说明</a> · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4">一分钟演示（MP4）</a> · <a href="#开始使用">开始使用</a> · <a href="docs/ACCEPTANCE.md">验收记录</a></p>
 
-一个 macOS 一键录音 / 录屏工具。
+[![Scriber 操作预览：录音、录屏和本地文件输出](docs/media/scriber-preview.gif)](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4)
 
-目标很简单：需要记录时快速开始，结束后拿到可用的音频或视频文件。
+<p align="center">↑ 10 秒操作预览 · <a href="https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4">下载完整 60 秒 MP4</a><br /><sub>1080p · 中文字幕与原创轻音乐 · 使用演示内容的原生界面实拍</sub></p>
 
-首要场景是自己录下 Teams 等会议，直接获得本地媒体文件，交给 agent 总结、分析和沉淀。
+## 为什么用 Scriber
 
-第一版面向自己的 Mac 使用，兼顾超过 6 小时的长录音、通常不超过 2 小时的录屏，以及有线 / 蓝牙声音设备。
+会议里的一段讨论，通话中的一个决定，视频中的一段讲解。你想留下当下听到、看到的内容，之后回听、分享，或者交给自己的 Agent 整理。
 
-```text
-选择录音或录屏 → 开始录制 → 停止 → 保存文件
+Scriber 把录制放进一个随时能打开的小面板：选择声音和范围，点开始，结束后拿到自己的文件。
+
+- **声音分开控制。** 电脑声音、麦克风分别开关，实时电平和状态让你看清每一路是否收到声音。
+- **录屏自带独立音频。** 一次录制，同时保存带声音的 MP4 和同名 M4A，省去事后提取音轨。
+- **文件直接留在本机。** 保存目录自己选，在历史里播放、改名或定位，然后交给习惯的工具继续使用。
+
+Scriber 专注录制与文件管理。总结、转录和分析由你选择的其他工具完成。
+
+## 怎么使用
+
+1. **呼出面板。** 点击菜单栏的波形图标，或按默认快捷键 **⌥R**。
+2. **选择要录的内容。** 录音时确认电脑声音和麦克风；录屏时再选择区域、窗口或整块屏幕。
+3. **开始记录。** 随时查看时长与收音状态，也可以直接修改文件名。收起面板后，录制继续。
+4. **停止并保存。** 文件自动存入选定目录，在历史中播放，或通过 Finder 打开。
+
+| 选择 | 得到的文件 |
+|---|---|
+| 录音 | 一个 M4A，混合录制时开启的声音来源 |
+| 录屏 | 一个带声音的 MP4 + 一个同名独立 M4A |
+
+录屏支持 **自选区域、单个窗口、整块屏幕**。框选区域后按回车开始，Esc 取消。录音与录屏的目录可以分别设置，录屏的两份文件会保存在一起。
+
+## 开始使用
+
+运行需要 **Apple Silicon Mac 与 macOS 26+**。当前 v0.1 面向个人使用，通过源码构建并本地签名；构建另需 **Xcode 26**。
+
+```sh
+git clone https://github.com/luyao618/dayscribe.git scriber
+cd scriber
+./scripts/build-app.sh release
+open build/Scriber.app
 ```
 
-- **录视频**：保存带声音的视频，同时保存独立音频。
-- **只录音**：电脑声音和麦克风可以分别开关，最终保存一个合成音频文件。
+首次使用按系统提示授予「屏幕与系统音频录制」和「麦克风」权限。当前仅录麦克风时也需要屏幕与系统音频录制权限。重新构建前先退出 Scriber。
 
-每次从小面板确认设置后开始。录完自动保存，历史列表支持播放、改名和在 Finder 中定位文件。
+默认保存在 `~/Movies/Scriber/录音` 与 `~/Movies/Scriber/录屏`。点击面板中的目录行即可更改。应用运行不依赖 Python、FFmpeg 或云服务。
 
-首次使用请看 [使用说明](docs/USAGE.md)：启动权限、录音／录屏、文件位置和中断恢复。v0.1 已按用户调整后的 Goal 范围交付；耳机切换、长录音麦克风连续性及锁屏／睡眠／合盖三项由用户后续自行验收，发现问题再提 bug。结果与限制见 [验收概览](docs/ACCEPTANCE.md)，详细证据见 [验证记录](docs/VALIDATION.md)。
+完整的权限、快捷键、改名和恢复操作见 [使用说明](docs/USAGE.md)。
 
-> 2026-09-16 重新确定方向。Scriber 为候选名称；主面板已接入双路音频引擎。运行中独立声音启停已通过内置与 USB 设备实测，全屏录制已通过测试入口实测，范围选择与正式入口已通过实际界面操作验证。
+## 当前状态
 
-## 原生应用开发
+v0.1 的录制面板、双路声音、三种录屏范围、配对文件、历史管理与异常恢复已经交付。
 
-当前主面板使用 AudioRecorder，默认选择两路声音并记住后续选择，分别显示真实电平、麦克风设备提示与文件名，停止后显示最近保存的 M4A。运行中声音切换、独立采集流启停和 AppKit 退出保存已通过真实验证。全屏／窗口／区域 MP4+M4A 已有真实采集验证，正式录屏入口和原生选择器已接入，实际点击流程已验证。录制已使用目标目录中的独立临时文件，完成写入后防覆盖保存；面板支持录制前、录制中和保存后改名，已通过实际界面操作验证；录音、录屏目录可分别设置并记住，录制中更改从下一次生效；新录制已登记到持久化历史索引，历史列表、搜索和 Finder 定位已接入；详情播放已接入，详情支持历史记录改名。
+真实 **8 小时录音**与 **2 小时录屏**已有文件时长、完整解码及资源记录。八小时录音保留了麦克风切换后的恢复警告，不能据此认定全程声音无缺口。耳机物理切换、麦克风连续性，以及锁屏／睡眠／合盖由项目所有者后续自行验收，发现问题再提 bug。详细结果和范围见 [验收概览](docs/ACCEPTANCE.md)。
 
-需要 macOS 26+、Apple Silicon 和 Xcode 26。运行 `./scripts/build-app.sh` 构建并本地签名，随后双击 `build/Scriber.app`，或运行 `open build/Scriber.app`。菜单栏波形图标用于打开和收起面板，面板右上角设置菜单可退出应用。
+## 文档与开发
 
-脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
+- [使用说明](docs/USAGE.md)：权限、录音、录屏、目录与历史。
+- [开发与验证入口](docs/DEVELOPMENT.md)：构建、签名、真实采集检查及实现行为。
+- [需求与边界](SPEC.md) · [详细验证记录](docs/VALIDATION.md)。
+- [产品短片与制作源文件](video/README.md)：分镜、字幕、素材来源、本地播放器与重新生成方法。
+- [面板设计](design/DESIGN.md) · [交互原型](design/index.html)：已确认的视觉基线；原型使用演示数据。
+- [Goal 与小 PR 交付约定](GOAL.md)。
 
-录屏操作：在面板切到「录屏」，通过范围行选择「自选区域／单个窗口／整块屏幕」，再点「选择范围并录屏」。区域模式拖动框选后按回车或「开始录屏」，Esc 取消；窗口／屏幕模式使用 macOS 选择界面。停止后生成同名 MP4 和 M4A，最近录制可在 Finder 中同时定位两份文件。区域首次拖动、系统窗口／屏幕选择、取消和录制中退出保存均已通过原生实际操作验证。
-
-短时真实麦克风检查：先退出普通 Scriber，再运行 `open build/Scriber.app --args --show-panel --microphone-check /absolute/output/directory 5`。该入口现在使用同一双路引擎的麦克风模式，需要麦克风及屏幕与系统音频录制权限，保存 M4A 和 result.json 并退出。中途退出会标记为 interrupted，不算完成请求的时长。测试音频请保留在本地，不提交进仓库。
-
-也可运行 `scripts/check-microphone.py --seconds 5`，或 `scripts/check-microphone.py --seconds 30 --interrupt-after 2` 验证录制中退出。脚本需要 ffmpeg / ffprobe，仅用于检查文件时长和完整解码，不是应用运行依赖。
-
-电脑声音检查：`scripts/check-system-audio.py --seconds 8` 会通过系统播放两段很轻的已知频率测试音，并从实际录制文件检查频率、顺序、时长和完整解码；`--seconds 30 --interrupt-after 5` 可验证异步退出保存。仅写音频，不保存屏幕画面。首次需要在系统设置中允许 Scriber 的屏幕与系统音频录制权限。
-
-双路混音检查：`scripts/check-system-audio.py --sources both --seconds 8`。麦克风声学校准可使用 `--sources microphone --microphone-device BuiltInMicrophoneDevice --playback-device BuiltInSpeakerDevice`，短测试音只通过内置扬声器播放，录制只取麦克风，保持系统默认设备设置。其他设备 UID 可通过`xcrun swift tools/PlayAudioFixture.swift --devices` 查询；使用 `--expected-microphone-rate` 检查实际输入采样率。每次只生成一份 M4A，原始媒体和诊断数据保存在忽略提交的 artifacts/ 下。这些短测不能替代设备切换、蓝牙和 8 小时 / 2 小时验收。
-
-主面板与运行中切换检查：`scripts/check-source-switching.py` 会录制 11 秒并检查声音开关、底层回调、输出信号和最后一路保护；支持 `--sources` 与 `--microphone-device`。AppKit 退出检查可用 `scripts/check-system-audio.py --panel --sources both --seconds 30 --interrupt-after 5 --quit-via-appkit`。这两项已通过实际采集验证；测试时 Mac 需解锁并亮屏。
-
-全屏录制检查：`scripts/check-system-audio.py --video --sources both --seconds 8`，或直接 `open build/Scriber.app --args --display-video-check /absolute/output/directory 8 --audio-sources both`。会真实录下主显示器，输出同名 MP4（有声音）和 M4A；支持 `--quit-via-appkit --seconds 30 --interrupt-after 5` 验证退出保存，`scripts/check-source-switching.py --video` 验证录屏中切换声音。视频测试时长包含采集流准备前确定的公共起点，可能比指定等待时间稍长。独立音频与 MP4 解码后的声音样本对应；AAC 容器显示时长可能仍有几十毫秒编码填充。原始媒体仅保存在本地 artifacts/，不提交。
-
-文件名操作：点击计时器下方的文件名或铅笔，输入后按回车或勾号确认。Esc／关闭面板丢弃未确认的编辑。录制中改名不移动正在写入的文件；保存后改名会同时修改视频与音频，并在重名时自动编号。输入无效名称仍可停止录制，使用上一次已确认名称。每种模式在本次运行中保留最近确认的自定义名称供下次录制使用；默认自动名称仍按时间生成。
-
-保存位置操作：点击主面板的保存位置行，或设置菜单中的「保存位置设置」，分别为录音、录屏选择文件夹。选择后自动记住，取消保留原设置。录制中主面板显示本次目录和「下次生效」提示；保存后的文件仍在原位置。录屏的视频和独立音频一起使用录屏目录。
-
-快捷键：默认使用 `⌥R` 从其他应用打开主录制面板。在设置中打开「呼出快捷键」，选择组合键和按键后保存，也可关闭。新组合无法注册时会保留原快捷键。录制范围或文件夹选择窗口打开时，先完成选择；收起面板不停止录制。
-
-声音设备：两路声音旁显示设备名称，悬停可查看完整说明。录制跟随系统默认麦克风；一路采集失败或超过一秒不再送出声音数据时，会尝试重新连接，保留另一条采集流和原声音选择。每次中断最多尝试两次，设备变化或稳定收音后重新允许重试；全部无法恢复时安全结束。面板根据真实数据显示恢复结果，中断记录随文件保留。开启新来源失败时，原有录制继续。蓝牙／USB 物理切换仍待完成验收。
-
-写入保护：音频和视频会先在约 2 秒处写下首个片段，随后约每 10 秒更新可恢复内容；正常停止仍交付一份 M4A，或 MP4 + M4A。静止画面也会留下恢复点。应用启动时会检查未完成录制，跳过正在使用的会话，恢复可用内容并更新原历史记录。面板会显示进度和结果；设置中的「检查未完成录制」可手动重试。开始新录制会暂停恢复，结束后继续；退出会等待恢复操作安全收尾。原始文件会保留，未完整写入的末尾内容可能缺失。
-
-历史操作：点击顶部历史图标或「查看全部」，按名称搜索录制；每次录屏的视频和独立音频显示为同一条记录。点击记录名称进入详情，可播放／暂停、通过进度条定位、切换视频或独立音频；每次打开和切换都先暂停。收起面板暂停预览，返回列表释放当前播放器并保留搜索条件。行末文件夹按钮在 Finder 中定位可用文件。详情标题旁的铅笔可修改历史名称；回车或勾号确认，Esc 取消。改名会先暂停并释放预览，同步处理本次已保存的视频与音频，重名时一起编号。缺失和未完成的文件会明确标出；刷新失败时保留已显示的记录。重启后，最近录制和历史会恢复。
-
-历史存储：正式应用在开始媒体写入前登记本次录制，索引位于 `~/Library/Application Support/Scriber/history.json`；每次录制的名称、时长、文件位置与状态保留在对应的 `session.json`。改名后读取同一份记录，避免路径副本不同步。启动和刷新历史时，会从默认及当前保存目录识别 Scriber 自己的旧记录文件；不会扫描导入无关媒体。旧记录没有时长信息时显示「—」。索引损坏或写入失败会明确拒绝开始录制，保留已有索引与媒体。
-
-文件命名检查：给 `scripts/check-system-audio.py` 追加 `--rename-check`，可验证录制开始前指定名称、录制中拒绝非法名称及应用新名称，同时保持写入路径不变；停止后验证最终名称、会话记录与完整解码。支持与 `--video`、`--panel`、`--quit-via-appkit` 组合。这是调用真实录制器的检查；面板改名、键盘操作及保存后双文件改名的实际 GUI 验证见 docs/VALIDATION.md。
-
-窗口／区域采集检查：`scripts/check-capture-targets.py` 会临时显示一个四色测试窗口，通过真实窗口录制和区域裁剪验证输出尺寸、位置、颜色及双文件；完成后关闭测试窗口。`--display-id <ID>` 可验证外接屏。单次测试可给 `check-system-audio.py --video` 追加 `--capture-window <window ID>`，或 `--capture-display <display ID> --capture-region x,y,width,height`；区域使用该显示器左上角为原点的逻辑点。正式范围选择 UI 已接入并通过实际点击验证。
-
-只读权限检查：`open build/Scriber.app --args --capture-permission-check /absolute/report.json`。该入口只查询本应用权限，不触发录制或修改系统权限。
-
-[实现说明与验收标准](SPEC.md) 已就绪，包含平台默认值、长时录制目标、设备变化处理及建议 Goal 文本。
-
-[Goal Prompt](GOAL.md) 已包含逐步提交小 PR、检查与自审通过后自动合并的交付要求。
-
-## UI 原型
-
-[打开面板原型](design/index.html) · [设计说明](design/DESIGN.md) · [验证记录](design/QA.md)
-
-常驻菜单栏的小面板，支持演示录音、选区录屏、录制中改名、双声音电平、保存路径和历史记录。声音与文件均为演示数据。
-
-本地预览：运行 `python3 -m http.server 8765 --bind 127.0.0.1`，打开 [http://127.0.0.1:8765/design/](http://127.0.0.1:8765/design/)。
-
-![Scriber 录制面板](design/screenshots/panel-preview.png)
-
-第一版聚焦录制入口、录制状态、停止与文件保存。具体交互和录制范围见 [IDEAS.md](IDEAS.md)。
-
-旧 dayscribe 的 AI 手账方案已归档到 [docs/archive/dayscribe/](docs/archive/dayscribe/IDEAS.md)。
-旧 ASR 探针保留在 [PR #4](https://github.com/luyao618/dayscribe/pull/4) 和原有分支中，不属于新应用。
+仓库早期的 dayscribe 方向已[归档](docs/archive/dayscribe/IDEAS.md)，旧 ASR 实验保留在 [PR #4](https://github.com/luyao618/dayscribe/pull/4)，不属于当前 Scriber 的功能范围。
