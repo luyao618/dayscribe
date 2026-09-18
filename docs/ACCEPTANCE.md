@@ -5,10 +5,10 @@
 ## 当前候选应用
 
 - 路径：`build/candidate/Scriber.app`，原生 Release 构建，已使用现有 Apple Development 身份签名并验证。
-- 构建来源：`79295eb8ec0336128d69dbe835b83339cb6e9441`，Sources 树 `08c6e0f352e7808ed40235e22bb639494d456e32`。后续仅文档变更不影响该代码版本。
+- 构建来源：`2a86beb94fff756650252cb645f169495f06d47d`，Sources 树 `b061be2af52f3cfe2cb33c41d4239170844c915d`，包含录屏目标不可用的中文提示。后续仅文档变更不影响该代码版本。
 - 本次打包环境：Apple Silicon / arm64、macOS 26.7、Xcode 26.6（17F113）。应用最低要求仍为 macOS 26。
-- 系统 LaunchServices 启动和权限检查通过；正常应用在隔离目录录下双路声音，AppKit 退出保存 **4.576833333 秒 / 219688 帧**。文件完整解码通过，再次启动恢复一条可用历史，个人历史未变。
-- 本地证据：`artifacts/delivery-candidate-r2.json`、`delivery-candidate-r2-build.log`、`delivery-candidate-r2-smoke.log`、`delivery-candidate-jl471nk2/verified.json`。
+- 系统 LaunchServices 启动和权限检查通过；更新后的正常应用在隔离目录录下双路声音，AppKit 退出保存 **4.553104167 秒 / 218549 帧**。文件完整解码通过，再次启动恢复一条可用历史，个人历史未变。
+- 本地证据：`artifacts/delivery-candidate-r3.json`、`video-target-message-validation-build.json`、`delivery-candidate-r3-smoke.log`、`delivery-candidate-lov6h_kk/verified.json`。候选二进制 SHA256：`240e6ac6cc2026eaf4d5d2932151aab257767575725c749c3540f2e00f79991a`。
 
 八小时录音仍使用冻结的 `build/Scriber.app`。首次两小时录屏在约91分钟时因测试画面程序的字体渲染崩溃而中断，文件已恢复，但不算长测通过。第二次实际录屏已完成 **7200.35425 秒**，保留文件的独立复核通过：两次原生完整解码、FFmpeg 完整解码、配对音频一致，首尾音画偏差的中位数变化 **6.666 毫秒**。首次自动原生解码曾报错，后续未复现，原因未确定；原始失败记录保留，不能表述为首次自动验收无异常。详细证据见 VALIDATION.md 的两小时复核记录。
 
@@ -43,4 +43,4 @@
 
 当前仓库审计确认：Goal 的 PR #5–#47 共 43 个均已合并，合并提交均在当前默认分支历史中。每个增量按个人身份、SSH 签名、自审和对应检查交付；原型自 PR #6 后未改动。旧 ASR PR #4／分支、原 stash 和 `.planning/scriber-v01/pre-goal-worktree` 备份仍保留。
 
-最终交付前需确认：八小时录音结果通过、物理设备和睡眠／锁屏转换有直接证据、最新应用包包含录屏目标提示修正且与合并代码一致，并更新本页及验证记录。PR #47 与 PR #41 各类保存警告的原生跟进已完成。两小时录屏已有保留文件复核通过的证据，但首次原生验证异常仍须随交付记录；八小时录音期间的设备／采样率变化也须如实复核。当前不会以候选包可启动或组件测试通过替代剩余条件。
+最终交付前需确认：八小时录音结果通过、物理设备和睡眠／锁屏转换有直接证据、默认 `build/Scriber.app` 更新为已验证的新包，并更新本页及验证记录。候选包已与合并代码一致；PR #47 与 PR #41 各类保存警告的原生跟进已完成。两小时录屏已有保留文件复核通过的证据，但首次原生验证异常仍须随交付记录；八小时录音期间的设备／采样率变化也须如实复核。当前不会以候选包可启动或组件测试通过替代剩余条件。

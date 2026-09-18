@@ -562,6 +562,12 @@ artifacts/CheckRecordedPlayback /absolute/session.json /absolute/NEW-output-dire
 
 ![Actual native partial history detail, with available audio and disabled unfinished video](screenshots/native-partial-save-preview.png)
 
+## Candidate refreshed after native GUI follow-ups — 2026-09-18
+
+- `build/candidate/Scriber.app` now matches merged Sources from2a86beb (treeb061be2af52f3cfe2cb33c41d4239170844c915d), including the video-target guidance verified above. Binary SHA256 is `240e6ac6cc2026eaf4d5d2932151aab257767575725c749c3540f2e00f79991a`. Source-input hashes were matched to the signed source commit and merged tree before copying; the existing development signature verified afterward. The earlier candidate is archived locally.
+- Refreshed normal-app lifecycle smoke passed **4.553104167s /218549 frames**: LaunchServices launch, permissions, isolated dual-source capture, AppKit quit/save, full decoding and fresh-process restoration of one available history record. Personal history remained unchanged. Evidence: `artifacts/delivery-candidate-r3.json`, `artifacts/delivery-candidate-r3-smoke.log`, `artifacts/delivery-candidate-lov6h_kk/verified.json`.
+- Original eight-hour capture remains on its frozen default bundle, whose binary hash was checked unchanged. The refreshed package smoke is separate from the actual native GUI checks above and does not complete the eight-hour/device/power acceptance. Replace the default bundle only after its owned capture exits.
+
 ## Remaining acceptance
 
 Physical USB/Bluetooth transitions, actual sleep/lid/lock transitions, the real8-hour audio result and final delivery/native-GUI audit remain outstanding. The real2-hour video files passed the review above with the first native-validation exception retained. Short recovery/control checks do not substitute for the remaining long-duration or hardware acceptance.
