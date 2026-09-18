@@ -551,7 +551,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             }
         } catch {
             guard generation == token else { return }
-            await stop(error: Self.captureMessage(error))
+            await stop(error: Self.captureMessage(error, forVideo: recordScreen))
         }
     }
 
@@ -701,6 +701,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: any Error) {
         let message = Self.captureMessage(error)
+        let videoMessage = Self.captureMessage(error, forVideo: true)
         let reference = CaptureStreamReference(stream)
         Task { @MainActor [weak self, reference] in
             // Retain the callback's stream until it is compared, so a new
@@ -708,7 +709,7 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
             let stream = reference.stream
             guard let self else { return }
             if self.videoStream === stream {
-                await self.stop(error: message)
+                await self.stop(error: videoMessage)
             } else if let source = self.streams.first(where: { $0.value === stream })?.key {
                 self.pendingSourceFailures[source] = (stream, message)
             }
@@ -816,10 +817,14 @@ final class AudioRecorder: NSObject, ObservableObject, SCStreamDelegate {
         onUpdate?()
     }
 
-    private nonisolated static func captureMessage(_ error: any Error) -> String {
+    private nonisolated static func captureMessage(_ error: any Error, forVideo: Bool = false) -> String {
         let error = error as NSError
         if error.domain == SCStreamErrorDomain, error.code == SCStreamError.Code.userDeclined.rawValue {
             return "请在系统设置 → 隐私与安全性 → 屏幕与系统音频录制中允许 Scriber，然后重启应用重试。"
+        }
+        if forVideo, error.domain == SCStreamErrorDomain,
+           [SCStreamError.Code.noWindowList, .noDisplayList, .noCaptureSource].contains(where: { $0.rawValue == error.code }) {
+            return "所选窗口或屏幕已不可用，请重新选择录屏范围后再开始。"
         }
         return error.localizedDescription
     }
