@@ -8,6 +8,8 @@
 
 脚本默认构建 debug，传入 `release` 可构建优化版本。重新构建前先退出 Scriber，脚本会拒绝覆盖正在运行的应用包。若本机只有一个有效 Apple Development 签名身份，脚本优先使用它以保持更新身份稳定；否则使用本地 ad-hoc 签名。可用 `SCRIBER_SIGN_IDENTITY` 明确指定身份或指定 `-` 使用 ad-hoc，无需创建新证书。
 
+预编译 DMG／ZIP 的独立构建与发布步骤见 [发布说明](RELEASING.md)。发布脚本不覆盖本机开发包，当前公开预览采用 ad-hoc 签名，并明确标注未公证状态。
+
 录屏操作：在面板切到「录屏」，通过范围行选择「自选区域／单个窗口／整块屏幕」，再点「选择范围并录屏」。区域模式拖动框选后按回车或「开始录屏」，Esc 取消；窗口／屏幕模式使用 macOS 选择界面。停止后生成同名 MP4 和 M4A，最近录制可在 Finder 中同时定位两份文件。区域首次拖动、系统窗口／屏幕选择、取消和录制中退出保存均已通过原生实际操作验证。
 
 短时真实麦克风检查：先退出普通 Scriber，再运行 `open build/Scriber.app --args --show-panel --microphone-check /absolute/output/directory 5`。该入口现在使用同一双路引擎的麦克风模式，需要麦克风及屏幕与系统音频录制权限，保存 M4A 和 result.json 并退出。中途退出会标记为 interrupted，不算完成请求的时长。测试音频请保留在本地，不提交进仓库。
