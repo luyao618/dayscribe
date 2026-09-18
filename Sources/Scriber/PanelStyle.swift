@@ -54,7 +54,7 @@ struct PanelSourceRow: View {
                     Text(deviceName).font(.system(size: 9)).foregroundStyle(PanelPalette.slate)
                         .lineLimit(1).truncationMode(.middle)
                         .help(deviceHelp)
-                        .accessibilityLabel("\(name)设备：\(deviceName)")
+                        .accessibilityLabel(L10n.text("\(name)设备：\(deviceName)"))
                 }
                 Spacer(minLength: 2)
                 Text(status).font(.system(size: 10)).foregroundStyle(PanelPalette.slate).fixedSize()
@@ -64,7 +64,7 @@ struct PanelSourceRow: View {
                     .help(toggleHelp)
             }
             HStack(spacing: 12) {
-                AudioLevelMeter(powerDB: powerDB ?? -160, tint: tint, label: "\(name)真实电平")
+                AudioLevelMeter(powerDB: powerDB ?? -160, tint: tint, label: L10n.text("\(name)真实电平"))
                 Text(powerDB.map { String(format: "%.0f dB", $0) } ?? "— dB")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(PanelPalette.slate)
@@ -91,6 +91,6 @@ private struct SourceToggleStyle: ToggleStyle {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(name)
-        .accessibilityValue(configuration.isOn ? "已开启" : "已关闭")
+        .accessibilityValue(configuration.isOn ? L10n.text("已开启") : L10n.text("已关闭"))
     }
 }

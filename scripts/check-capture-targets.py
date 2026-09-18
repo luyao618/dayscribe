@@ -63,7 +63,8 @@ try:
         print(f"PASS: {kind}, {width}x{height}, all four quadrants in their correct positions", flush=True)
     invalid = root / "unavailable-window"
     invalid.mkdir()
-    subprocess.run(["open", str(project / "build/Scriber.app"), "--args", "--display-video-check",
+    # Keep the message assertion deterministic without changing system preferences.
+    subprocess.run(["open", str(project / "build/Scriber.app"), "--args", "-AppleLanguages", "(zh-Hans)", "--display-video-check",
         str(invalid), "1", "--audio-sources", "system", "--capture-window", "4294967295"], check=True)
     deadline = time.monotonic() + 15
     while not (invalid / "result.json").exists() and time.monotonic() < deadline:

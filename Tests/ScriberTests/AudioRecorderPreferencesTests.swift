@@ -33,7 +33,7 @@ struct AudioRecorderPreferencesTests {
         let restored = AudioRecorder(defaults: defaults)
         #expect(restored.sources == [.microphone])
         #expect(!(await restored.setSources([])))
-        #expect(restored.controlMessage == "至少保留一路声音。")
+        #expect(restored.controlMessage == L10n.text("至少保留一路声音。"))
         #expect(restored.state == .idle)
         #expect(AudioRecorder(defaults: defaults).sources == [.microphone])
         defaults.set(0, forKey: "recordingSources")

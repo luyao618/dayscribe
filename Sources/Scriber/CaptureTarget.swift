@@ -2,7 +2,7 @@ import ScreenCaptureKit
 
 enum CaptureKind: String, CaseIterable {
     case region, window, display
-    var title: String { switch self { case .region: "自选区域"; case .window: "单个窗口"; case .display: "整块屏幕" } }
+    var title: String { switch self { case .region: L10n.text("自选区域"); case .window: L10n.text("单个窗口"); case .display: L10n.text("整块屏幕") } }
     var symbol: String { switch self { case .region: "viewfinder"; case .window: "macwindow"; case .display: "display" } }
 }
 
@@ -62,8 +62,8 @@ enum CaptureTargetError: LocalizedError {
     case unavailable, invalidRegion
     var errorDescription: String? {
         switch self {
-        case .unavailable: "所选屏幕或窗口已不可用，请重新选择。"
-        case .invalidRegion: "录屏区域无效，请在一块屏幕内重新框选。"
+        case .unavailable: L10n.text("所选屏幕或窗口已不可用，请重新选择。")
+        case .invalidRegion: L10n.text("录屏区域无效，请在一块屏幕内重新框选。")
         }
     }
 }
@@ -113,16 +113,16 @@ struct CaptureTarget {
                                  title: windowTitle.flatMap { $0.isEmpty ? nil : $0 } ?? title)
         case .window(let id):
             guard let window = content.windows.first(where: { $0.windowID == id }) else { throw CaptureTargetError.unavailable }
-            let title = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? window.owningApplication?.applicationName ?? "所选窗口"
+            let title = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? window.owningApplication?.applicationName ?? L10n.text("所选窗口")
             return CaptureTarget(filter: SCContentFilter(desktopIndependentWindow: window), sourceRect: nil, title: title)
         case .display(let id), .region(let id, _):
             guard let display = content.displays.first(where: { $0.displayID == id }) else { throw CaptureTargetError.unavailable }
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
             if case .region(_, let rect) = request {
                 let clipped = try CaptureGeometry.region(rect, within: filter.contentRect.size)
-                return CaptureTarget(filter: filter, sourceRect: clipped, title: "自选区域")
+                return CaptureTarget(filter: filter, sourceRect: clipped, title: L10n.text("自选区域"))
             }
-            return CaptureTarget(filter: filter, sourceRect: nil, title: "整块屏幕")
+            return CaptureTarget(filter: filter, sourceRect: nil, title: L10n.text("整块屏幕"))
         }
     }
 

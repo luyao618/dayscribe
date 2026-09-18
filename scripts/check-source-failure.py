@@ -30,7 +30,8 @@ root = Path(tempfile.mkdtemp(prefix='source-failure-', dir=project / 'artifacts'
 print('Evidence directory:', root, flush=True)
 mode = 'system' if args.failed_addition else (args.source if args.only_source else 'both')
 seconds = 10 if args.permanent else 6
-command = ['open', str(project / 'build/Scriber.app'), '--args', '--show-panel',
+# This diagnostic asserts Chinese messages; pin only this process's language.
+command = ['open', str(project / 'build/Scriber.app'), '--args', '-AppleLanguages', '(zh-Hans)', '--show-panel',
            '--display-video-check' if args.video else '--panel-audio-check', str(root), str(seconds), '--audio-sources', mode]
 if args.failed_addition:
     command += ['--failed-addition-check', '--microphone-device', 'Scriber-Missing-Diagnostic-Input']
