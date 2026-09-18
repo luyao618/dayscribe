@@ -2,6 +2,8 @@
 
 This log concerns the native application. Browser-prototype checks in design/QA.md do not prove capture functionality.
 
+Current disposition (2026-09-18): the user moved controlled physical headset transitions, microphone reconnection/continuity assessment, and actual lock/sleep/lid transitions to later personal acceptance, reporting bugs if encountered. These three items no longer block this Goal. Historical pending items, failed checks and warnings below remain factual evidence, not newly passed tests. The delivered app and completed checks satisfy the revised scope in [SPEC.md](../SPEC.md); see [ACCEPTANCE.md](ACCEPTANCE.md) for the current conclusion.
+
 ## Native application shell — 2026-09-16
 
 - Environment: Apple Silicon, macOS 26.6.2, Xcode 26.6, Swift 6.3.3.
@@ -588,6 +590,12 @@ This completes the measured real-time eight-hour **file** result, while preservi
 - The default app's signature passed and its binary exactly matches the candidate SHA240e6ac6... / merged Sources treeb061be2.... Normal default-path LaunchServices/permissions/dual capture/AppKit quit/full decode/restart-history checks passed **4.385833333s /210520 frames**; personal history was unchanged. Evidence: `artifacts/delivery-default.json`, `delivery-default-smoke.log`, `delivery-candidate-nl3mp871/verified.json`.
 - Repository audit confirms all50 goal PRs5–54 merged into current ancestry; the approved design, original stash, legacy ASR PR/branch and pre-goal worktree backup are preserved. This package update completes the default-file refresh, not the remaining device/power acceptance. Availability for physical unlock/wake/device coordination was requested asynchronously; no answer is assumed.
 
-## Remaining acceptance
+## User-owned follow-up acceptance — 2026-09-18
 
-Controlled USB/Bluetooth transitions and assessment of the observed microphone reconnections, plus actual sleep/lid/lock transitions, remain outstanding. The default bundle is updated; eight-hour audio file checks and two-hour video file checks have reviewed evidence with their original warning/validation failures preserved. Neither those results nor short control checks certify uninterrupted microphone coverage or replace the remaining hardware/power acceptance.
+The user explicitly moved the following to later personal acceptance and will report bugs if encountered:
+
+1. Controlled wired/USB/Bluetooth connection, disconnection and default-device transitions.
+2. Assessment of microphone reconnection causes and continuity, including the 36 attempts observed during the eight-hour recording.
+3. Actual lock/unlock, sleep/wake and lid transitions.
+
+These items remain unverified and no longer block Goal completion under the revised scope. The default bundle is delivered; eight-hour audio file checks and two-hour video file checks have reviewed evidence with their original warning/validation failures preserved. Neither those results nor short control checks certify uninterrupted microphone coverage or a pass for the deferred hardware/power tests. No new capture, hardware test or evidence rewrite was performed for this scope change.
