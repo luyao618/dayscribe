@@ -2,7 +2,7 @@
 
 一分钟中文产品介绍：为什么用 Scriber、怎样录音／录屏，以及如何拿到本地文件。1920×1080，30 fps，中文字幕与原创轻音乐；静音观看也能理解。
 
-[观看 / 下载 MP4](scriber-intro-zh.mp4) · [分镜与文案](STORYBOARD.md) · [字幕](scriber-zh.srt) · [素材来源](assets/provenance.json)
+[下载 MP4](https://raw.githubusercontent.com/luyao618/dayscribe/main/video/scriber-intro-zh.mp4) · [分镜与文案](STORYBOARD.md) · [字幕](scriber-zh.srt) · [素材来源](assets/provenance.json)
 
 ## 内容与来源
 
