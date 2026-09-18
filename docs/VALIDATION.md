@@ -582,6 +582,12 @@ The original session recorded for eight actual hours and published a valid file.
 
 This completes the measured real-time eight-hour **file** result, while preserving the source-continuity limitation and failed original clean-run outcome. Final device/power acceptance and default-bundle delivery remain required.
 
+## Default app updated after the endurance capture exited — 2026-09-18
+
+- Verified that no Scriber process remained, archived the frozen eight-hour app intact at `artifacts/eight-hour-app-archive-pn5kgtly/Scriber.app`, and updated `build/Scriber.app` from the verified candidate. The archived original binary still matches `c55271a4d113c6936652a70521e3e38c07913bc38b49cb5684a8e0bc2dd3ce44`. Recorded media and original evidence were not moved or changed.
+- The default app's signature passed and its binary exactly matches the candidate SHA240e6ac6... / merged Sources treeb061be2.... Normal default-path LaunchServices/permissions/dual capture/AppKit quit/full decode/restart-history checks passed **4.385833333s /210520 frames**; personal history was unchanged. Evidence: `artifacts/delivery-default.json`, `delivery-default-smoke.log`, `delivery-candidate-nl3mp871/verified.json`.
+- Repository audit confirms all50 goal PRs5–54 merged into current ancestry; the approved design, original stash, legacy ASR PR/branch and pre-goal worktree backup are preserved. This package update completes the default-file refresh, not the remaining device/power acceptance. Availability for physical unlock/wake/device coordination was requested asynchronously; no answer is assumed.
+
 ## Remaining acceptance
 
-Controlled USB/Bluetooth transitions and assessment of the observed microphone reconnections, actual sleep/lid/lock transitions, and final default-bundle delivery remain outstanding. Eight-hour audio file checks and two-hour video file checks have reviewed evidence with their original warning/validation failures preserved. Neither those results nor short control checks certify uninterrupted microphone coverage or replace the remaining hardware/power acceptance.
+Controlled USB/Bluetooth transitions and assessment of the observed microphone reconnections, plus actual sleep/lid/lock transitions, remain outstanding. The default bundle is updated; eight-hour audio file checks and two-hour video file checks have reviewed evidence with their original warning/validation failures preserved. Neither those results nor short control checks certify uninterrupted microphone coverage or replace the remaining hardware/power acceptance.
