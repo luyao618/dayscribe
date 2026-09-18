@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if invalidValidationArguments { NSLog("--validation-root requires an absolute directory"); NSApp.terminate(nil); return }
+        if writeLocalizationCheckIfRequested() { return }
         if writePermissionCheckIfRequested() { return }
         installEditingMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -185,6 +186,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.mainMenu = menu
     }
 
+    /// Read-only fresh-process check; AppleLanguages arguments never change system preferences.
+    private func writeLocalizationCheckIfRequested() -> Bool {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--localization-check") else { return false }
+        defer { NSApp.terminate(nil) }
+        guard args.indices.contains(index + 1), args[index + 1].hasPrefix("/") else {
+            NSLog("--localization-check requires an absolute report path")
+            return true
+        }
+        do {
+            let report: [String: Any] = [
+                "language": AppLanguage.current.rawValue,
+                "preferredLanguages": Locale.preferredLanguages,
+                "audioTitle": L10n.text("录音"),
+                "resourceBundle": L10n.resourceBundle.bundleURL.path,
+                "microphoneUsage": Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") as? String ?? ""
+            ]
+            try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+                .write(to: URL(fileURLWithPath: args[index + 1]), options: .atomic)
+        } catch { NSLog("Localization check failed: %@", error.localizedDescription) }
+        return true
+    }
+
     /// Optional local evidence for manual GUI validation; never enabled in normal launches.
     private func writeUIReport() {
         let args = CommandLine.arguments
@@ -192,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
               args[index + 1].hasPrefix("/") else { return }
         let report: [String: Any] = [
             "pid": ProcessInfo.processInfo.processIdentifier,
+            "language": AppLanguage.current.rawValue,
             "state": capturePicker.isChoosing ? "selecting" : recorder.state.rawValue,
             "selectionKind": capturePicker.kind.rawValue,
             "selectionOutcome": capturePicker.lastOutcome,
