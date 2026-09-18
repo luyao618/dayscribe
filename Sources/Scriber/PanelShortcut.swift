@@ -61,7 +61,7 @@ final class GlobalPanelShortcut: ObservableObject {
                 enabled = saved.enabled
             } else {
                 enabled = false
-                errorMessage = "快捷键设置无法读取，请重新设置；原设置已保留。"
+                errorMessage = L10n.text("快捷键设置无法读取，请重新设置；原设置已保留。")
             }
         }
     }
@@ -82,7 +82,7 @@ final class GlobalPanelShortcut: ObservableObject {
         defer { onUpdate?() }
         let candidate = !desiredEnabled && !candidate.isValid ? shortcut : candidate
         guard candidate.isValid else {
-            errorMessage = "请至少选择 ⌘、⌥ 或 ⌃ 中的一个组合键。"
+            errorMessage = L10n.text("请至少选择 ⌘、⌥ 或 ⌃ 中的一个组合键。")
             return false
         }
         var replacement: EventHotKeyRef?
@@ -95,7 +95,7 @@ final class GlobalPanelShortcut: ObservableObject {
                 EventHotKeyID(signature: Self.signature, id: replacementID), GetApplicationEventTarget(),
                 OptionBits(kEventHotKeyExclusive), &replacement)
             guard status == noErr, replacement != nil else {
-                errorMessage = "这个组合无法启用，可能已被占用。" + (isRegistered ? "原快捷键仍然生效。" : "请换一个组合。")
+                errorMessage = L10n.text("这个组合无法启用，可能已被占用。") + (isRegistered ? L10n.text("原快捷键仍然生效。") : L10n.text("请换一个组合。"))
                 return false
             }
         }
@@ -103,7 +103,7 @@ final class GlobalPanelShortcut: ObservableObject {
             let status = UnregisterEventHotKey(old)
             guard status == noErr else {
                 if let replacement { UnregisterEventHotKey(replacement) }
-                errorMessage = "无法更改当前快捷键，请重试。"
+                errorMessage = L10n.text("无法更改当前快捷键，请重试。")
                 return false
             }
             hotKey = nil
@@ -154,7 +154,7 @@ final class GlobalPanelShortcut: ObservableObject {
                 return noErr
             }
         }, eventTypes.count, &eventTypes, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
-        if status != noErr { errorMessage = "无法启用快捷键，请重试。" }
+        if status != noErr { errorMessage = L10n.text("无法启用快捷键，请重试。") }
         return status == noErr
     }
 }
