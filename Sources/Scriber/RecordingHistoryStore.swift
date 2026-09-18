@@ -47,9 +47,9 @@ enum RecordingHistoryError: LocalizedError {
     case invalidIndex, invalidManifest, oversized
     var errorDescription: String? {
         switch self {
-        case .invalidIndex: "历史索引无法读取，原有记录已保留。"
-        case .invalidManifest: "这条录制记录无法读取。"
-        case .oversized: "录制记录文件过大，原文件已保留。"
+        case .invalidIndex: L10n.text("历史索引无法读取，原有记录已保留。")
+        case .invalidManifest: L10n.text("这条录制记录无法读取。")
+        case .oversized: L10n.text("录制记录文件过大，原文件已保留。")
         }
     }
 }
@@ -128,11 +128,11 @@ actor RecordingHistoryStore {
                             try Self.validate(reference)
                             guard Self.readEntry(reference).manifest != nil else { throw RecordingHistoryError.invalidManifest }
                             references.append(reference)
-                        } catch { issues.append("\(child.lastPathComponent)：\(error.localizedDescription)") }
+                        } catch { issues.append(L10n.text("\(child.lastPathComponent)：\(error.localizedDescription)")) }
                     }
                 } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
                     continue
-                } catch { issues.append("\(directory.path)：\(error.localizedDescription)") }
+                } catch { issues.append(L10n.text("\(directory.path)：\(error.localizedDescription)")) }
             }
             return (references, issues)
         }.value
@@ -222,7 +222,7 @@ actor RecordingHistoryStore {
                 }
             }
             let moved = urls.contains { kind, url in url.path != manifest.paths[kind.rawValue] }
-            let issues = [manifest.error, moved ? "文件位置已变化，已定位到实际文件，改名记录待同步。" : nil].compactMap { $0 }
+            let issues = [manifest.error, moved ? L10n.text("文件位置已变化，已定位到实际文件，改名记录待同步。") : nil].compactMap { $0 }
             return .init(reference: reference, manifest: manifest, urls: urls, fileStates: states,
                          issue: issues.isEmpty ? nil : issues.joined(separator: "\n"))
         } catch {

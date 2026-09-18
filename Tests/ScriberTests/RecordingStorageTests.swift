@@ -30,7 +30,7 @@ struct RecordingStorageTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let recorder = AudioRecorder(readStorage: { _ in RecordingStorage(availableBytes: 0, volumeID: "test") })
         await recorder.start(directory: root, sources: [.system], title: "refuse")
-        #expect(recorder.state == .failed && recorder.errorMessage?.contains("空间不足") == true)
+        #expect(recorder.state == .failed && recorder.errorMessage == StorageError.lowSpace.localizedDescription)
         #expect(recorder.sessionID == nil && recorder.outputURL == nil && !recorder.audioSaved)
         #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
     }

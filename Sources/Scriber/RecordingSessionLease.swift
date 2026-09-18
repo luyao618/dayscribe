@@ -5,8 +5,8 @@ enum RecordingSessionLeaseError: LocalizedError, Equatable {
     case inUse, invalidLocation
     var errorDescription: String? {
         switch self {
-        case .inUse: "这次录制仍在使用中。"
-        case .invalidLocation: "录制会话位置无效。"
+        case .inUse: L10n.text("这次录制仍在使用中。")
+        case .invalidLocation: L10n.text("录制会话位置无效。")
         }
     }
 }

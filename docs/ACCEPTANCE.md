@@ -14,8 +14,16 @@
 
 ## 当前应用包
 
-- 路径：`build/Scriber.app`；保留同版本副本 `build/candidate/Scriber.app`。原生 Release 构建，已使用现有 Apple Development 身份签名并验证。
-- 构建来源：`2a86beb94fff756650252cb645f169495f06d47d`，Sources 树 `b061be2af52f3cfe2cb33c41d4239170844c915d`，包含录屏目标不可用的中文提示。后续仅文档变更不影响该代码版本。
+- 路径：`build/Scriber.app`，已更新为支持简体中文／英文的原生 Release 签名包。
+- 启动时首选语言为英文则显示英文，否则默认简体中文；支持 macOS 单应用语言偏好，修改后重启生效。文件名、历史警告和保存目录不会因语言变化而改写。
+- Sources 树：`0f499020c55bf13eda95c0ad75fabf1d76cfcfcf`；二进制 SHA256：`0f3c3c5db89fd9963dc265f04fa50bc0da37841417e137300b05ad1419f81cae`。构建输入逐文件哈希及复制包验证保存在 `artifacts/localization/final-package.json`。
+- 本地化验证：109 项 Release 测试通过；六种独立进程语言配置、资源实际路径、词库完整性和签名检查通过。中英文主面板实际短录音各 1.9 秒及英文常用子页有原生操作证据；部分子页交互未完成本轮桌面复测，范围详见 [VALIDATION.md](VALIDATION.md#system-language-delivery-2026-09-18)。
+- 现有 `build/candidate/Scriber.app` 与 `artifacts/localization/pre-change-Scriber.app` 保留为本地化前版本，不是当前默认包；视频素材来源和原始验证记录保留。
+
+## 本地化前的交付与长测证据
+
+- 当时路径：`build/Scriber.app`；保留同版本副本 `build/candidate/Scriber.app`。原生 Release 构建，已使用现有 Apple Development 身份签名并验证。
+- 构建来源：`2a86beb94fff756650252cb645f169495f06d47d`，Sources 树 `b061be2af52f3cfe2cb33c41d4239170844c915d`，包含录屏目标不可用的中文提示。该版本用于下述既有交付证据；当前默认包已更新为上方本地化版本。
 - 本次打包环境：Apple Silicon / arm64、macOS 26.7、Xcode 26.6（17F113）。应用最低要求仍为 macOS 26。
 - 系统 LaunchServices 启动和权限检查通过；更新后的正常应用在隔离目录录下双路声音，AppKit 退出保存 **4.553104167 秒 / 218549 帧**。文件完整解码通过，再次启动恢复一条可用历史，个人历史未变。
 - 本地证据：`artifacts/delivery-candidate-r3.json`、`video-target-message-validation-build.json`、`delivery-candidate-r3-smoke.log`、`delivery-candidate-lov6h_kk/verified.json`。候选二进制 SHA256：`240e6ac6cc2026eaf4d5d2932151aab257767575725c749c3540f2e00f79991a`。
@@ -25,7 +33,7 @@
 
 首次两小时录屏在约91分钟时因测试画面程序崩溃而中断并恢复，不算两小时通过。第二次完成 **7200.35425 秒**，保留文件的完整解码、配对音频及首尾同步复核通过，音画偏差中位数变化 **6.666 毫秒**。首次原生验证报错未复现，原因未定；原失败记录保留。两项长测的范围和限制详见 VALIDATION.md。
 
-长测使用冻结的测试包；当前默认包和候选副本包含之后的修正，均有短时正常生命周期验证。它们不等同于同一二进制重新完成了长测；各版本来源均保留。
+长测使用冻结的测试包；当时的交付与候选包包含之后的修正，均有短时正常生命周期验证。最新本地化包的验证另列于上方。这些版本不等同于同一二进制重新完成了长测；各版本来源均保留。
 
 ## 按需求检查
 

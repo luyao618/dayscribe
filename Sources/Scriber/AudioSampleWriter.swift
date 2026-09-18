@@ -15,12 +15,12 @@ enum AudioWriteError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .noSamples: "没有收到音频数据。"
-        case .unexpectedFormat: "音频格式与录制配置不一致。"
-        case .invalidTimestamp: "音频时间戳无效或发生倒退。"
-        case .backpressure: "音频写入速度不足，录制已中止以避免静默丢帧。"
-        case .alreadyFinished: "音频写入已结束。"
-        case .encoding(let message): "音频编码失败：\(message)"
+        case .noSamples: L10n.text("没有收到音频数据。")
+        case .unexpectedFormat: L10n.text("音频格式与录制配置不一致。")
+        case .invalidTimestamp: L10n.text("音频时间戳无效或发生倒退。")
+        case .backpressure: L10n.text("音频写入速度不足，录制已中止以避免静默丢帧。")
+        case .alreadyFinished: L10n.text("音频写入已结束。")
+        case .encoding(let message): L10n.text("音频编码失败：\(message)")
         }
     }
 }
@@ -66,7 +66,7 @@ final class AudioSampleWriter: @unchecked Sendable {
         guard writer.canAdd(input) else { throw AudioWriteError.unexpectedFormat }
         writer.add(input)
         guard writer.startWriting() else {
-            throw AudioWriteError.encoding(writer.error?.localizedDescription ?? "无法打开输出文件")
+            throw AudioWriteError.encoding(writer.error?.localizedDescription ?? L10n.text("无法打开输出文件"))
         }
     }
 
@@ -100,7 +100,7 @@ final class AudioSampleWriter: @unchecked Sendable {
             let levels = try Self.levels(sample, format: format)
             guard input.isReadyForMoreMediaData else { throw encoderFailure ?? .backpressure }
             guard input.append(sample) else {
-                throw AudioWriteError.encoding(writer.error?.localizedDescription ?? "无法写入音频数据")
+                throw AudioWriteError.encoding(writer.error?.localizedDescription ?? L10n.text("无法写入音频数据"))
             }
             frames += Int64(count)
             lastTime = time
@@ -146,7 +146,7 @@ final class AudioSampleWriter: @unchecked Sendable {
                 }
                 guard self.writer.status == .writing else {
                     continuation.resume(throwing: self.failure ?? .encoding(
-                        self.writer.error?.localizedDescription ?? "写入已停止"))
+                        self.writer.error?.localizedDescription ?? L10n.text("写入已停止")))
                     return
                 }
                 if let end = self.lastEnd { self.writer.endSession(atSourceTime: end) }
@@ -158,7 +158,7 @@ final class AudioSampleWriter: @unchecked Sendable {
                             else { continuation.resume(returning: self.summary) }
                         } else {
                             continuation.resume(throwing: AudioWriteError.encoding(
-                                self.writer.error?.localizedDescription ?? "输出文件没有正常完成"))
+                                self.writer.error?.localizedDescription ?? L10n.text("输出文件没有正常完成")))
                         }
                     }
                 }
@@ -176,7 +176,7 @@ final class AudioSampleWriter: @unchecked Sendable {
     // AVAssetWriter may fail asynchronously after accepting the last sample.
     // Poll its status even when no subsequent append reaches the encoder.
     private var encoderFailure: AudioWriteError? {
-        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? "音频写入已失败") : nil
+        writer.status == .failed ? .encoding(writer.error?.localizedDescription ?? L10n.text("音频写入已失败")) : nil
     }
 
     static func levels(_ sample: CMSampleBuffer, format: AVAudioFormat) throws -> (power: Float, peak: Float) {

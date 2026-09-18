@@ -140,14 +140,14 @@ struct RecordingSessionFiles: Sendable {
                 })
             }
             if closed != Set(files.urls.keys) {
-                message = [message, "部分录制文件未完成写入，原始数据保留在：\(stagingDirectory.path)"]
+                message = [message, L10n.text("部分录制文件未完成写入，原始数据保留在：\(stagingDirectory.path)")]
                     .compactMap { $0 }.joined(separator: "\n")
             }
             try checkpoint(title: resolvedTitle, files: .init(urls: locations), closed: closed,
                            published: published, error: Self.combined(captureError, message),
                            duration: duration, captureError: captureError)
         } catch {
-            message = [message, "录制记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
+            message = [message, L10n.text("录制记录未能写入：\(error.localizedDescription)")].compactMap { $0 }.joined(separator: "\n")
         }
         return .init(files: .init(urls: locations), title: resolvedTitle,
                      published: published, errorMessage: message)
@@ -205,7 +205,7 @@ struct RecordingSessionFiles: Sendable {
             updated.recovery = previous.recovery
             try save(updated, manifestURL)
         } catch {
-            message = [message, "改名记录未能写入：\(error.localizedDescription)"].compactMap { $0 }.joined(separator: "\n")
+            message = [message, L10n.text("改名记录未能写入：\(error.localizedDescription)")].compactMap { $0 }.joined(separator: "\n")
         }
         return .init(files: locations, title: resolvedTitle, published: published, errorMessage: message)
     }
@@ -245,5 +245,5 @@ struct RecordingSessionFiles: Sendable {
 
 private enum RecordingRenameError: LocalizedError {
     case unavailable
-    var errorDescription: String? { "文件尚未保存完成或无法唯一定位，请刷新或恢复文件后重试。" }
+    var errorDescription: String? { L10n.text("文件尚未保存完成或无法唯一定位，请刷新或恢复文件后重试。") }
 }

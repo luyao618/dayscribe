@@ -10,11 +10,11 @@ final class AudioPCMConverter {
         case duration(expectedFrames: Int64, availableFrames: Int64)
         var errorDescription: String? {
             switch self {
-            case .format: "无法处理当前声音设备的音频格式。"
-            case .input: "声音数据无效或单次数据过大。"
-            case .conversion: "声音格式转换失败。"
-            case .duration: "转换后的声音时长不一致。"
-            case .finished: "声音格式转换已结束。"
+            case .format: L10n.text("无法处理当前声音设备的音频格式。")
+            case .input: L10n.text("声音数据无效或单次数据过大。")
+            case .conversion: L10n.text("声音格式转换失败。")
+            case .duration: L10n.text("转换后的声音时长不一致。")
+            case .finished: L10n.text("声音格式转换已结束。")
             }
         }
     }

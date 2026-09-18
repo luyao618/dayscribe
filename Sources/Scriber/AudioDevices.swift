@@ -35,7 +35,7 @@ enum AudioDeviceReadError: Error, LocalizedError, Equatable {
     case property(OSStatus)
     case invalidData
 
-    var errorDescription: String? { "无法读取声音设备，请检查系统声音设置。" }
+    var errorDescription: String? { L10n.text("无法读取声音设备，请检查系统声音设置。") }
 }
 
 enum AudioDevices {

@@ -47,10 +47,10 @@ final class RecordingPowerSession {
             }
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             systemAssertion = try Self.assertion(kIOPMAssertionTypePreventUserIdleSystemSleep,
-                                                reason: "Scriber 正在录制并保存文件")
+                                                reason: L10n.text("Scriber 正在录制并保存文件"))
             if video {
                 displayAssertion = try Self.assertion(kIOPMAssertionTypePreventUserIdleDisplaySleep,
-                                                     reason: "Scriber 正在录制屏幕")
+                                                     reason: L10n.text("Scriber 正在录制屏幕"))
             }
         } catch {
             end()
@@ -119,8 +119,8 @@ enum RecordingPowerError: LocalizedError {
     case registration, assertion(IOReturn)
     var errorDescription: String? {
         switch self {
-        case .registration: "无法监听系统睡眠状态，请重新启动 Scriber 后再录制。"
-        case .assertion(let code): "无法在录制期间保持系统唤醒（\(code)），请重试。"
+        case .registration: L10n.text("无法监听系统睡眠状态，请重新启动 Scriber 后再录制。")
+        case .assertion(let code): L10n.text("无法在录制期间保持系统唤醒（\(code)），请重试。")
         }
     }
 }

@@ -71,7 +71,10 @@ struct RecordingFileSetTests {
             }
             try RecordingFileSet.moveExclusively(source, target)
         }
-        #expect(!result.succeeded && result.errorMessage?.contains("部分文件未能移回原位置") == true)
+        #expect(!result.succeeded)
+        let message = try #require(result.errorMessage)
+        #expect(message.contains(fixture.root.appendingPathComponent("会议.m4a").path))
+        #expect(message.contains(POSIXError(.EACCES).localizedDescription))
         #expect(result.files.urls[.audio] == fixture.root.appendingPathComponent("会议.m4a"))
         #expect(result.files.urls[.video] == fixture.files.urls[.video])
         try expectContents(result.files, audio: "audio", video: "video")

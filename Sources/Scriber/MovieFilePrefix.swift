@@ -5,10 +5,10 @@ enum MediaRecoveryError: LocalizedError {
     case noCheckpoint, invalidMedia, sourceChanged, unsafePath
     var errorDescription: String? {
         switch self {
-        case .noCheckpoint: "没有找到完整的录制索引，原始文件已保留。"
-        case .invalidMedia: "录制片段无法完整读取，原始文件已保留。"
-        case .sourceChanged: "恢复期间原始文件发生变化，请稍后重试。"
-        case .unsafePath: "恢复文件的位置无效。"
+        case .noCheckpoint: L10n.text("没有找到完整的录制索引，原始文件已保留。")
+        case .invalidMedia: L10n.text("录制片段无法完整读取，原始文件已保留。")
+        case .sourceChanged: L10n.text("恢复期间原始文件发生变化，请稍后重试。")
+        case .unsafePath: L10n.text("恢复文件的位置无效。")
         }
     }
 }
