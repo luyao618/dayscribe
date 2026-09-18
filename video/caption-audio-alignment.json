@@ -1,0 +1,71 @@
+{
+  "method": "Cross-correlate each actual narration PCM segment with final decoded mixed AAC, mono24k, searching plus/minus120ms. Positive offset means final audio later.",
+  "maxAbsoluteOffsetMs": 0.0,
+  "segments": [
+    {
+      "id": "01",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9923353580894603
+    },
+    {
+      "id": "02",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9903303372982368
+    },
+    {
+      "id": "03",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9899693568036253
+    },
+    {
+      "id": "04",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9911286175314225
+    },
+    {
+      "id": "05",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9903967637141714
+    },
+    {
+      "id": "06",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9890354537695698
+    },
+    {
+      "id": "07",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9912077818906114
+    },
+    {
+      "id": "08",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9915121834098476
+    },
+    {
+      "id": "09",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9899816839682697
+    },
+    {
+      "id": "10",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9900522980567034
+    },
+    {
+      "id": "11",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9918759159925558
+    },
+    {
+      "id": "12",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9898673794463314
+    },
+    {
+      "id": "13",
+      "offsetMs": 0.0,
+      "normalizedCorrelation": 0.9906984506452607
+    }
+  ]
+}

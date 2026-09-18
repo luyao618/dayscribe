@@ -1,0 +1,23 @@
+{
+  "durationSeconds": 60,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "decodedVideoFrames": 1800,
+  "video": "H.264 yuv420p",
+  "audio": "AAC 48kHz stereo",
+  "meanVolumeDBFS": -22.8,
+  "peakVolumeDBFS": -1.7,
+  "fullDecode": "passed",
+  "faststart": true,
+  "nativeAssetsChecked": 9,
+  "nativeClipsHaveNoAudio": true,
+  "bytes": 3701614,
+  "sha256": "05506ce8971caa8368648875f8c665cfb9f135f8af08fd68339029824bfac285",
+  "narrationLanguage": "English",
+  "subtitles": "English above Chinese, burned into video",
+  "speechCues": 13,
+  "narrationSHA256": "f659870e3587b1c5af76f527ec92f5316313c8c4c9ea8f5ccc76f1d7332ac069"
+}

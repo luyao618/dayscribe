@@ -1,0 +1,17 @@
+Independent ASR of the final mixed MP4 soundtrack (tiny.en, local CPU INT8).
+Approximate ASR times are not used for caption alignment.
+
+0.11–6.11: Meet Scriber, keep what matters from meetings, calls, and videos.
+6.11–12.36: Click the menu bar icon or press option R to open the panel.
+12.36–17.36: Record system audio and your microphone with separate controls.
+17.36–20.36: Start recording, then get back to what you are doing.
+20.36–23.83: See the timer and audio levels.
+23.83–29.07: Rename your file as you record.
+29.07–32.07: Need the picture to choose screen recording.
+32.07–37.07: Select a region, a window, or your whole screen.
+37.07–40.07: Then stop and save.
+40.07–45.07: Get a video with sound plus a separate audio file.
+45.07–48.07: Audio only, one M for a file.
+48.07–51.07: Choose where your files go.
+51.07–55.07: Play, Rename, or find recordings in your history.
+55.07–58.07: Scriber, record it, put it to work.
